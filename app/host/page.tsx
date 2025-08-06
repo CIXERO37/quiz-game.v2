@@ -144,8 +144,16 @@ export default function HostPage() {
       });
 
       setPlayerProgress(Array.from(progressMap.values()));
+
+      // 🔥 Jika ada pemain yang sudah selesai semua soal, langsung selesaikan game
+      const sudahAdaYangSelesai = Array.from(progressMap.values()).some(
+        (p) => p.currentQuestion >= quiz.questions.length
+      );
+      if (sudahAdaYangSelesai && !showLeaderboard) {
+        supabase.from("games").update({ is_started: false, finished: true }).eq("id", gameId);
+      }
     }
-  }, [gameId, quiz]);
+  }, [gameId, quiz, showLeaderboard]);
 
   // Listen to game & players changes
   useEffect(() => {
@@ -154,7 +162,7 @@ export default function HostPage() {
     const gameSubscription = supabase
       .channel("game_status")
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "games", filter: `id=eq.${gameId}` }, (payload) => {
-        if (!payload.new.is_started) {
+        if (payload.new.finished) {
           setQuizStarted(false);
           setShowLeaderboard(true);
           toast.success("🎉 Quiz ended! Showing leaderboard...");

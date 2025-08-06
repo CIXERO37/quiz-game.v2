@@ -72,7 +72,7 @@ export default function PlayPage() {
       await fetchQuizzes();
       const found = DUMMY_QUIZZES.find((q) => q.id === quizId);
       setQuiz(found || null);
-      setCurrentQuestion(0)
+      setCurrentQuestion(0);
       setLoading(false);
     };
 
@@ -185,43 +185,41 @@ export default function PlayPage() {
     const correct = choice.is_correct;
     setIsCorrect(correct);
 
+    await supabase.from("player_answers").insert({
+      player_id: playerId,
+      game_id: gameId,
+      question_index: currentQuestion,
+      is_correct: correct,
+      points_earned: correct ? 100 : 0,
+    });
+
     if (correct) {
       addScore(100);
       incrementCorrectAnswers();
-      await supabase.from("player_answers").insert({
-        player_id: playerId,
-        game_id: gameId,
-        question_index: currentQuestion,
-        is_correct: correct,
-        points_earned: correct ? 100 : 0,
-      });
-
-      setShowResult(true);
-
-      setTimeout(() => {
-        if ((correctAnswers + 1) % 3 === 0) {
-          setShowMiniGame(true);
-        } else {
-          nextQuestion();
-        }
-      }, 2000);
-    } else {
-      setShowResult(true);
-      setTimeout(() => {
-        nextQuestion();
-      }, 2000);
     }
+
+    setShowResult(true);
+
+    setTimeout(() => {
+      if (correct && (correctAnswers + 1) % 3 === 0) {
+        setShowMiniGame(true);
+      } else {
+        nextQuestion();
+      }
+    }, 2000);
   };
 
-  const nextQuestion = () => {
+  const nextQuestion = async () => {
     if (!question || !quiz) return;
-    if (currentQuestion < shuffledQuestions.length - 1) {
-      setCurrentQuestion(currentQuestion + 1);
-    } else {
+
+    // 🔥 Jika ini soal terakhir: tandai game selesai
+    if (currentQuestion >= shuffledQuestions.length - 1) {
+      await supabase.from("games").update({ finished: true, is_started: false }).eq("id", gameId);
       setShouldNavigate(true);
       return;
     }
 
+    setCurrentQuestion(currentQuestion + 1);
     setSelectedChoiceId(null);
     setIsAnswered(false);
     setShowResult(false);
