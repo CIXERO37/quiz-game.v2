@@ -49,7 +49,7 @@ const POWER_UPS_CONFIG = {
 }
 
 export default function SpaceDodge({ onComplete }: Props) {
-  const [timeLeft, setTimeLeft] = useState(10)
+  const [timeLeft, setTimeLeft] = useState(20)
   const [score, setScore] = useState(0)
   const [meteors, setMeteors] = useState<Meteor[]>([])
   const [powerUps, setPowerUps] = useState<PowerUp[]>([])
