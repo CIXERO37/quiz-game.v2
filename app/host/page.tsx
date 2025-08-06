@@ -117,6 +117,7 @@ export default function HostPage() {
   const updatePlayerProgress = useCallback(async () => {
     if (!gameId || !quiz) return;
 
+    // 🔁 Ambil SEMUA jawaban (termasuk mini-game question_index = -1)
     const { data: answers, error } = await supabase
       .from("player_answers")
       .select("player_id, question_index, is_correct, points_earned")
@@ -129,8 +130,13 @@ export default function HostPage() {
 
       playersData?.forEach((player) => {
         const playerAnswers = answers.filter((a) => a.player_id === player.id);
+
+        // Total skor = semua poin (soal kuis + mini-game)
         const score = playerAnswers.reduce((sum, a) => sum + (a.points_earned || 0), 0);
-        const currentQuestion = playerAnswers.length;
+
+        // Hanya hitung soal kuis nyata (bukan mini-game)
+        const quizAnswers = playerAnswers.filter((a) => a.question_index >= 0);
+        const currentQuestion = quizAnswers.length;
 
         progressMap.set(player.id, {
           id: player.id,
@@ -145,7 +151,7 @@ export default function HostPage() {
 
       setPlayerProgress(Array.from(progressMap.values()));
 
-      // 🔥 Jika ada pemain yang sudah selesai semua soal, langsung selesaikan game
+      // Jika sudah ada pemain yang menyelesaikan semua soal, selesaikan game
       const sudahAdaYangSelesai = Array.from(progressMap.values()).some(
         (p) => p.currentQuestion >= quiz.questions.length
       );
