@@ -72,6 +72,7 @@ export default function PlayPage() {
       await fetchQuizzes();
       const found = DUMMY_QUIZZES.find((q) => q.id === quizId);
       setQuiz(found || null);
+      setCurrentQuestion(0)
       setLoading(false);
     };
 
@@ -81,7 +82,7 @@ export default function PlayPage() {
     }
 
     loadQuiz();
-  }, [gameId, quizId, router]);
+  }, [gameId, quizId, router, setCurrentQuestion]);
 
   // 🔥 Listener untuk redirect ketika host selesaikan kuis
   useEffect(() => {
