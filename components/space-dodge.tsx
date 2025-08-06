@@ -6,6 +6,11 @@ import { Rocket, ShieldAlert, Star, Heart, Zap } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useGameStore } from "@/lib/store"
 
+// Inisialisasi audio dengan path sesuai struktur file
+const backgroundMusic = typeof Audio !== "undefined" ? new Audio("/audio/Space Pixel Background for Video Game - CraftPix - Game Assets.mp3") : null
+const powerUpSound = typeof Audio !== "undefined" ? new Audio("/audio/sound_untuk_dapat_poin.wav") : null
+const collisionSound = typeof Audio !== "undefined" ? new Audio("/audio/sound_untuk_kurangi_poin.wav") : null
+
 interface Props {
   onComplete: (score: number) => void
 }
@@ -53,7 +58,23 @@ export default function SpaceDodge({ onComplete }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const lastFrameTime = useRef(performance.now())
+
   const { gameId, playerId } = useGameStore()
+
+  // ---------- BACKGROUND MUSIC ----------
+  useEffect(() => {
+    if (backgroundMusic && !gameOver) {
+      backgroundMusic.loop = true
+      backgroundMusic.volume = 0.3 // Volume rendah agar tidak mengganggu
+      backgroundMusic.play().catch((e) => console.error("Error playing background music:", e))
+    }
+    return () => {
+      if (backgroundMusic) {
+        backgroundMusic.pause()
+        backgroundMusic.currentTime = 0
+      }
+    }
+  }, [gameOver])
 
   // ---------- TIMER ----------
   useEffect(() => {
@@ -169,6 +190,11 @@ export default function SpaceDodge({ onComplete }: Props) {
             if (hit) {
               setScore((s) => Math.max(0, s - 20))
               spawnParticles(m.x, m.y, 10, "#f87171")
+              // Putar suara tabrakan meteor
+              if (collisionSound) {
+                collisionSound.currentTime = 0
+                collisionSound.play().catch((e) => console.error("Error playing collision sound:", e))
+              }
             }
             return !hit
           })
@@ -183,6 +209,11 @@ export default function SpaceDodge({ onComplete }: Props) {
             if (hit) {
               setScore((s) => s + p.points)
               spawnParticles(p.x, p.y, 8, p.type === "star" ? "#fbbf24" : p.type === "heart" ? "#ec4899" : "#38bdf8")
+              // Putar suara power-up
+              if (powerUpSound) {
+                powerUpSound.currentTime = 0
+                powerUpSound.play().catch((e) => console.error("Error playing power-up sound:", e))
+              }
             }
             return !hit
           })
@@ -231,7 +262,7 @@ export default function SpaceDodge({ onComplete }: Props) {
       stars.push({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
-        size: Math.random() > 0.8 ? 4 : 2, // Mix of 2x2 and 4x4 pixel stars
+        size: Math.random() > 0.8 ? 4 : 2,
         opacity: Math.random(),
         speed: Math.random() * 0.5 + 0.2,
       })
@@ -249,7 +280,7 @@ export default function SpaceDodge({ onComplete }: Props) {
         cancelAnimationFrame(animationFrameId)
         return
       }
-      ctx.fillStyle = "#0a0a0a" // Dark background for pixel art
+      ctx.fillStyle = "#0a0a0a"
       ctx.fillRect(0, 0, canvas.width, canvas.height)
 
       // Draw planets
@@ -280,10 +311,7 @@ export default function SpaceDodge({ onComplete }: Props) {
       onTouchMove={handleMove}
     >
       {/* Background Canvas for Pixel Art */}
-      <canvas
-        ref={canvasRef}
-        className="absolute inset-0"
-      />
+      <canvas ref={canvasRef} className="absolute inset-0" />
 
       {/* HUD */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-4 bg-gradient-to-r from-purple-900/80 to-indigo-900/80 backdrop-blur-md px-6 py-3 rounded-lg border-2 border-yellow-300 shadow-lg">
