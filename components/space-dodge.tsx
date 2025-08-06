@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Rocket, ShieldAlert, Star, Heart, Zap } from "lucide-react"
+import { ShieldAlert, Star, Heart, Zap } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useGameStore } from "@/lib/store"
 
@@ -61,11 +61,14 @@ export default function SpaceDodge({ onComplete }: Props) {
 
   const { gameId, playerId } = useGameStore()
 
+  // Log untuk debugging
+  console.log("Rendering SpaceDodge with DurrrSpaceShip_2.png")
+
   // ---------- BACKGROUND MUSIC ----------
   useEffect(() => {
     if (backgroundMusic && !gameOver) {
       backgroundMusic.loop = true
-      backgroundMusic.volume = 0.3 // Volume rendah agar tidak mengganggu
+      backgroundMusic.volume = 0.3
       backgroundMusic.play().catch((e) => console.error("Error playing background music:", e))
     }
     return () => {
@@ -78,8 +81,8 @@ export default function SpaceDodge({ onComplete }: Props) {
 
   // ---------- TIMER ----------
   useEffect(() => {
-    console.log("Timer effect started", { gameId, playerId })
     if (gameOver) return
+    console.log("Timer effect started", { gameId, playerId })
 
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
@@ -329,12 +332,17 @@ export default function SpaceDodge({ onComplete }: Props) {
 
       {/* Ship */}
       <motion.div
-        className="absolute bottom-8 w-12 h-12 flex items-center justify-center text-sky-300"
+        className="absolute bottom-8 w-12 h-12 flex items-center justify-center"
         style={{ left: `${shipX}%`, x: "-50%" }}
         animate={{ scale: [1, 1.05, 1], rotate: [0, 5, -5, 0] }}
         transition={{ repeat: Infinity, duration: 1.5 }}
       >
-        <Rocket size={48} className="drop-shadow-[0_0_8px_rgba(125,211,252,0.8)]" />
+        <img
+          src="/images/DurrrSpaceShip_2.png"
+          alt="Spaceship"
+          className="w-12 h-12 drop-shadow-[0_0_8px_rgba(125,211,252,0.8)] object-contain"
+          onError={() => console.error("Failed to load spaceship image: /images/DurrrSpaceShip_2.png")}
+        />
       </motion.div>
 
       {/* Meteors */}
