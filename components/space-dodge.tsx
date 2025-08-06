@@ -1,8 +1,9 @@
+
 "use client"
 
 import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { ShieldAlert, Star, Heart, Zap } from "lucide-react"
+import { Star, Heart, Zap } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useGameStore } from "@/lib/store"
 
@@ -62,7 +63,7 @@ export default function SpaceDodge({ onComplete }: Props) {
   const { gameId, playerId } = useGameStore()
 
   // Log untuk debugging
-  console.log("Rendering SpaceDodge with DurrrSpaceShip_2.png")
+  console.log("Rendering SpaceDodge with DurrrSpaceShip_2.png and Asteroid.png")
 
   // ---------- BACKGROUND MUSIC ----------
   useEffect(() => {
@@ -354,10 +355,15 @@ export default function SpaceDodge({ onComplete }: Props) {
             animate={{ opacity: 1, scale: 1, rotate: 360 }}
             exit={{ opacity: 0, scale: 0.5 }}
             transition={{ rotate: { duration: 2, repeat: Infinity, ease: "linear" } }}
-            className="absolute w-8 h-8 text-red-400 drop-shadow-[0_0_6px_rgba(248,113,113,0.6)]"
+            className="absolute w-8 h-8"
             style={{ left: `${m.x}%`, top: `${m.y}%`, x: "-50%", y: "-50%" }}
           >
-            <ShieldAlert size={32} />
+            <img
+              src="/images/Asteroid.png"
+              alt="Meteor"
+              className="w-8 h-8 drop-shadow-[0_0_6px_rgba(248,113,113,0.6)] object-contain"
+              onError={() => console.error("Failed to load meteor image: /images/Asteroid.png")}
+            />
           </motion.div>
         ))}
       </AnimatePresence>
