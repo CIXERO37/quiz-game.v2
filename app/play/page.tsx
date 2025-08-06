@@ -1,32 +1,33 @@
 // app/play/page.tsx
-"use client"
+"use client";
 
-import { useState, useEffect, useMemo } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import { useRouter } from "next/navigation"
-import { Clock } from "lucide-react"
-import { Progress } from "@/components/ui/progress"
-import SpaceDodge from "@/components/space-dodge"
-import { useGameStore } from "@/lib/store"
-import { supabase } from "@/lib/supabase"
-import { fetchQuizzes, DUMMY_QUIZZES } from "@/lib/dummy-data"
-import { toast } from "sonner"
-import type { Quiz } from "@/lib/types"
+import { useState, useEffect, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
+import { Clock } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import SpaceDodge from "@/components/space-dodge";
+import { useGameStore } from "@/lib/store";
+import { supabase } from "@/lib/supabase";
+import { fetchQuizzes, DUMMY_QUIZZES } from "@/lib/dummy-data";
+import { toast } from "sonner";
+import type { Quiz } from "@/lib/types";
 
+// Tombol gaya pixel
 function PixelButton({
   children,
   color = "blue",
   className = "",
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  color?: "blue" | "green" | "red" | "yellow"
+  color?: "blue" | "green" | "red" | "yellow";
 }) {
   const colorStyles = {
     blue: "bg-blue-500 border-blue-700 text-white hover:bg-blue-600 active:bg-blue-700",
     green: "bg-green-500 border-green-700 text-white hover:bg-green-600 active:bg-green-700",
     red: "bg-red-500 border-red-700 text-white hover:bg-red-600 active:bg-red-700",
     yellow: "bg-yellow-400 border-yellow-600 text-black hover:bg-yellow-500 active:bg-yellow-600",
-  }
+  };
 
   return (
     <button
@@ -35,24 +36,24 @@ function PixelButton({
     >
       {children}
     </button>
-  )
+  );
 }
 
 export default function PlayPage() {
-  const [timeLeft, setTimeLeft] = useState(300)
-  const [selectedChoiceId, setSelectedChoiceId] = useState<number | null>(null)
-  const [isAnswered, setIsAnswered] = useState(false)
-  const [showResult, setShowResult] = useState(false)
-  const [isCorrect, setIsCorrect] = useState(false)
-  const [isQuizStarted, setIsQuizStarted] = useState(false)
-  const [showCountdown, setShowCountdown] = useState(false)
-  const [countdownValue, setCountdownValue] = useState(10)
-  const [shouldNavigate, setShouldNavigate] = useState(false)
-  const [quiz, setQuiz] = useState<Quiz | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [showMiniGame, setShowMiniGame] = useState(false)
+  const [timeLeft, setTimeLeft] = useState(300);
+  const [selectedChoiceId, setSelectedChoiceId] = useState<number | null>(null);
+  const [isAnswered, setIsAnswered] = useState(false);
+  const [showResult, setShowResult] = useState(false);
+  const [isCorrect, setIsCorrect] = useState(false);
+  const [isQuizStarted, setIsQuizStarted] = useState(false);
+  const [showCountdown, setShowCountdown] = useState(false);
+  const [countdownValue, setCountdownValue] = useState(10);
+  const [shouldNavigate, setShouldNavigate] = useState(false);
+  const [quiz, setQuiz] = useState<Quiz | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showMiniGame, setShowMiniGame] = useState(false);
 
-  const router = useRouter()
+  const router = useRouter();
   const {
     gameId,
     playerId,
@@ -63,158 +64,175 @@ export default function PlayPage() {
     setCurrentQuestion,
     addScore,
     incrementCorrectAnswers,
-  } = useGameStore()
+  } = useGameStore();
 
-  // Load quizzes
+  // Load quiz
   useEffect(() => {
     const loadQuiz = async () => {
-      await fetchQuizzes()
-      const found = DUMMY_QUIZZES.find((q) => q.id === quizId)
-      setQuiz(found || null)
-      setLoading(false)
-    }
+      await fetchQuizzes();
+      const found = DUMMY_QUIZZES.find((q) => q.id === quizId);
+      setQuiz(found || null);
+      setLoading(false);
+    };
 
     if (!gameId || !quizId) {
-      router.replace("/")
-      return
+      router.replace("/");
+      return;
     }
 
-    loadQuiz()
-  }, [gameId, quizId, router])
+    loadQuiz();
+  }, [gameId, quizId, router]);
 
-  // Detect when host starts the quiz
+  // 🔥 Listener untuk redirect ketika host selesaikan kuis
   useEffect(() => {
-    if (!gameId || loading) return
+    if (!gameId || loading) return;
+
+    const channel = supabase
+      .channel("game-finished")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "games", filter: `id=eq.${gameId}` },
+        (payload) => {
+          if (payload.new.finished) {
+            router.replace("/result");
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [gameId, loading, router]);
+
+  // Cek apakah host sudah mulai kuis
+  useEffect(() => {
+    if (!gameId || loading) return;
 
     const checkStart = async () => {
-      const { data } = await supabase
-        .from("games")
-        .select("is_started")
-        .eq("id", gameId)
-        .single()
-
+      const { data } = await supabase.from("games").select("is_started").eq("id", gameId).single();
       if (data?.is_started && !isQuizStarted && !showCountdown) {
-        setShowCountdown(true)
+        setShowCountdown(true);
       }
-    }
+    };
 
-    const interval = setInterval(checkStart, 1000)
-    return () => clearInterval(interval)
-  }, [gameId, isQuizStarted, showCountdown, loading])
+    const interval = setInterval(checkStart, 1000);
+    return () => clearInterval(interval);
+  }, [gameId, isQuizStarted, showCountdown, loading]);
 
-  // 10-second countdown
+  // Countdown 10 detik sebelum mulai
   useEffect(() => {
-    if (!showCountdown) return
+    if (!showCountdown) return;
     const timer = setInterval(() => {
       setCountdownValue((prev) => {
         if (prev <= 1) {
-          clearInterval(timer)
-          setShowCountdown(false)
-          setIsQuizStarted(true)
-          return 0
+          clearInterval(timer);
+          setShowCountdown(false);
+          setIsQuizStarted(true);
+          return 0;
         }
-        return prev - 1
-      })
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [showCountdown])
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [showCountdown]);
 
-  // Quiz timer
+  // Timer kuis
   useEffect(() => {
-    if (!isQuizStarted || !quiz) return
+    if (!isQuizStarted || !quiz) return;
     const timer = setInterval(() => {
       setTimeLeft((t) => {
         if (t <= 1) {
-          clearInterval(timer)
-          setShouldNavigate(true)
-          return 0
+          clearInterval(timer);
+          setShouldNavigate(true);
+          return 0;
         }
-        return t - 1
-      })
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [isQuizStarted, quiz])
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isQuizStarted, quiz]);
 
-  // Redirect
+  // Redirect otomatis
   useEffect(() => {
-    if (shouldNavigate) router.replace("/result")
-  }, [shouldNavigate, router])
+    if (shouldNavigate) router.replace("/result");
+  }, [shouldNavigate, router]);
 
-  // Shuffle questions
+  // Acak pertanyaan
   const shuffledQuestions = useMemo(() => {
-    if (!quiz) return []
-    return [...quiz.questions].sort(() => Math.random() - 0.5)
-  }, [quiz])
+    if (!quiz) return [];
+    return [...quiz.questions].sort(() => Math.random() - 0.5);
+  }, [quiz]);
 
-  const question = shuffledQuestions[currentQuestion]
+  const question = shuffledQuestions[currentQuestion];
 
   const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
-  }
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
 
+  // Fungsi saat pemain memilih jawaban
   const handleAnswerSelect = async (choice: {
-    id: number
-    choice_text: string
-    is_correct: boolean
+    id: number;
+    choice_text: string;
+    is_correct: boolean;
   }) => {
-    if (isAnswered || !question) return
-    setSelectedChoiceId(choice.id)
-    setIsAnswered(true)
-    const correct = choice.is_correct
-    setIsCorrect(correct)
+    if (isAnswered || !question) return;
+    setSelectedChoiceId(choice.id);
+    setIsAnswered(true);
+    const correct = choice.is_correct;
+    setIsCorrect(correct);
 
     if (correct) {
-      addScore(100)
-      incrementCorrectAnswers()
+      addScore(100);
+      incrementCorrectAnswers();
       await supabase.from("player_answers").insert({
         player_id: playerId,
         game_id: gameId,
         question_index: currentQuestion,
         is_correct: correct,
         points_earned: correct ? 100 : 0,
-      })
+      });
 
-      setShowResult(true)
+      setShowResult(true);
 
       setTimeout(() => {
         if ((correctAnswers + 1) % 3 === 0) {
-          setShowMiniGame(true)
+          setShowMiniGame(true);
         } else {
-          nextQuestion()
+          nextQuestion();
         }
-      }, 2000)
+      }, 2000);
     } else {
-      setShowResult(true)
+      setShowResult(true);
       setTimeout(() => {
-        nextQuestion()
-      }, 2000)
+        nextQuestion();
+      }, 2000);
     }
-  }
+  };
 
   const nextQuestion = () => {
-    if (!question || !quiz) return
+    if (!question || !quiz) return;
     if (currentQuestion < shuffledQuestions.length - 1) {
-      setCurrentQuestion(currentQuestion + 1)
+      setCurrentQuestion(currentQuestion + 1);
     } else {
-      setShouldNavigate(true)
-      return
+      setShouldNavigate(true);
+      return;
     }
 
-    setSelectedChoiceId(null)
-    setIsAnswered(false)
-    setShowResult(false)
-    setIsCorrect(false)
-  }
+    setSelectedChoiceId(null);
+    setIsAnswered(false);
+    setShowResult(false);
+    setIsCorrect(false);
+  };
 
   const handleMiniGameComplete = (miniScore: number) => {
-    addScore(miniScore)
-    setShowMiniGame(false)
-    nextQuestion()
-  }
+    addScore(miniScore);
+    setShowMiniGame(false);
+    nextQuestion();
+  };
 
-  // Common background component
   const Background = () => (
     <div className="fixed inset-0 z-0 overflow-hidden">
       <div className="absolute inset-0 bg-[#87CEEB]" style={{ imageRendering: "pixelated" }} />
@@ -223,10 +241,9 @@ export default function PlayPage() {
       </div>
       <div className="absolute inset-0 bg-black/40" />
     </div>
-  )
+  );
 
-  // Loading screen
-  if (loading) {
+  if (loading)
     return (
       <>
         <Background />
@@ -236,31 +253,24 @@ export default function PlayPage() {
           </div>
         </div>
       </>
-    )
-  }
+    );
 
-  // Quiz not found
-  if (!quiz || !question) {
+  if (!quiz || !question)
     return (
       <>
         <Background />
         <div className="relative z-10 min-h-screen flex items-center justify-center font-mono text-white">
           <div className="bg-black/70 border-4 border-red-500 p-6 rounded-lg">
             <p>Quiz not found or invalid quiz ID.</p>
-            <button
-              onClick={() => router.replace("/")}
-              className="mt-4 px-4 py-2 bg-red-600 rounded"
-            >
+            <button onClick={() => router.replace("/")} className="mt-4 px-4 py-2 bg-red-600 rounded">
               Go Home
             </button>
           </div>
         </div>
       </>
-    )
-  }
+    );
 
-  // Countdown screen
-  if (showCountdown) {
+  if (showCountdown)
     return (
       <>
         <Background />
@@ -285,11 +295,9 @@ export default function PlayPage() {
           </motion.div>
         </div>
       </>
-    )
-  }
+    );
 
-  // Waiting screen
-  if (!isQuizStarted) {
+  if (!isQuizStarted)
     return (
       <>
         <Background />
@@ -299,10 +307,8 @@ export default function PlayPage() {
           </div>
         </div>
       </>
-    )
-  }
+    );
 
-  // Main quiz screen
   return (
     <>
       <Background />
@@ -312,7 +318,6 @@ export default function PlayPage() {
         </AnimatePresence>
 
         <div className="w-full max-w-4xl mx-auto p-4">
-          {/* Header */}
           <div className="flex justify-between items-center mb-4">
             <div className="text-lg">
               Score: <span className="font-bold text-yellow-300">{score}</span>
@@ -323,10 +328,8 @@ export default function PlayPage() {
             </div>
           </div>
 
-          {/* Progress */}
           <Progress value={((currentQuestion + 1) / shuffledQuestions.length) * 100} className="mb-6" />
 
-          {/* Question */}
           <motion.div
             key={currentQuestion}
             initial={{ opacity: 0, y: 20 }}
@@ -337,16 +340,15 @@ export default function PlayPage() {
             <h2 className="text-xl mb-4">Question {currentQuestion + 1}</h2>
             <p className="text-lg mb-6">{question.question}</p>
 
-            {/* Choices */}
             <div className={`grid ${question.choices.length === 3 ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2"} gap-4`}>
               {question.choices.map((choice) => {
-                const isSelected = selectedChoiceId === choice.id
-                const isRight = choice.is_correct
-                let buttonColor: "blue" | "green" | "red" = "blue"
+                const isSelected = selectedChoiceId === choice.id;
+                const isRight = choice.is_correct;
+                let buttonColor: "blue" | "green" | "red" = "blue";
 
                 if (isAnswered) {
-                  if (isRight) buttonColor = "green"
-                  else if (isSelected && !isRight) buttonColor = "red"
+                  if (isRight) buttonColor = "green";
+                  else if (isSelected && !isRight) buttonColor = "red";
                 }
 
                 return (
@@ -359,11 +361,10 @@ export default function PlayPage() {
                   >
                     {choice.choice_text}
                   </PixelButton>
-                )
+                );
               })}
             </div>
 
-            {/* Result */}
             <AnimatePresence>
               {showResult && (
                 <motion.div
@@ -382,5 +383,5 @@ export default function PlayPage() {
         </div>
       </div>
     </>
-  )
+  );
 }
