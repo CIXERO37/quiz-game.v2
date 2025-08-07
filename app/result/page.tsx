@@ -212,17 +212,19 @@ export default function ResultPage() {
               className="mb-12"
             >
               <div className="flex justify-center items-end space-x-4 max-w-2xl mx-auto">
-                {playerResults.slice(0, 3).map((player, index) => {
-                  const actualPosition = player.position
-                  const podiumOrder = [1, 0, 2] // Center, Left, Right for visual podium
-                  const displayIndex = podiumOrder.indexOf(index)
-                  
-                  return (
+                {playerResults
+                  .slice(0, 3)
+                  .sort((a, b) => {
+                    // Podium order: [2, 1, 3] to place 1st in the center
+                    const order = [1, 0, 2]; 
+                    return order.indexOf(playerResults.indexOf(a)) - order.indexOf(playerResults.indexOf(b));
+                  })
+                  .map((player) => (
                     <motion.div
-                      key={player.id}
+                      key={player.id} // FIXED: use unique ID to prevent duplicates
                       initial={{ opacity: 0, y: 100 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.5 + displayIndex * 0.2 }}
+                      transition={{ delay: 0.5 + (player.position - 1) * 0.2 }}
                       className="flex flex-col items-center"
                     >
                       <div className="relative mb-4">
@@ -231,20 +233,19 @@ export default function ResultPage() {
                           alt={player.name}
                           className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-lg"
                         />
-                        <div className={`absolute -top-2 -right-2 w-8 h-8 rounded-full bg-gradient-to-br ${getPodiumColor(actualPosition)} flex items-center justify-center`}>
-                          <span className="text-white font-bold text-sm">{actualPosition}</span>
+                        <div className={`absolute -top-2 -right-2 w-8 h-8 rounded-full bg-gradient-to-br ${getPodiumColor(player.position)} flex items-center justify-center`}>
+                          <span className="text-white font-bold text-sm">{player.position}</span>
                         </div>
                       </div>
                       
                       <h3 className="text-white font-bold text-lg mb-2">{player.name}</h3>
                       <div className="text-2xl font-bold text-yellow-400 mb-4">{player.score}</div>
                       
-                      <div className={`${actualPosition === 1 ? 'h-32' : actualPosition === 2 ? 'h-24' : 'h-16'} w-24 bg-gradient-to-t ${getPodiumColor(actualPosition)} rounded-t-lg flex items-end justify-center pb-2 shadow-lg`}>
-                        <span className="text-white font-bold text-lg">#{actualPosition}</span>
+                      <div className={`${player.position === 1 ? 'h-32' : player.position === 2 ? 'h-24' : 'h-16'} w-24 bg-gradient-to-t ${getPodiumColor(player.position)} rounded-t-lg flex items-end justify-center pb-2 shadow-lg`}>
+                        <span className="text-white font-bold text-lg">#{player.position}</span>
                       </div>
                     </motion.div>
-                  )
-                })}
+                  ))}
               </div>
             </motion.div>
           )}
