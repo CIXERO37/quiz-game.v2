@@ -1,4 +1,4 @@
-
+// space-dodge.tsx
 "use client"
 
 import { useState, useEffect, useRef } from "react"
@@ -7,7 +7,7 @@ import { Star, Heart, Zap } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useGameStore } from "@/lib/store"
 
-// Inisialisasi audio dengan path sesuai struktur file
+// Inisialisasi audio
 const backgroundMusic = typeof Audio !== "undefined" ? new Audio("/audio/Space Pixel Background for Video Game - CraftPix - Game Assets.mp3") : null
 const powerUpSound = typeof Audio !== "undefined" ? new Audio("/audio/sound_untuk_dapat_poin.wav") : null
 const collisionSound = typeof Audio !== "undefined" ? new Audio("/audio/sound_untuk_kurangi_poin.wav") : null
@@ -49,7 +49,7 @@ const POWER_UPS_CONFIG = {
 }
 
 export default function SpaceDodge({ onComplete }: Props) {
-  const [timeLeft, setTimeLeft] = useState(25)
+  const [timeLeft, setTimeLeft] = useState(30)
   const [score, setScore] = useState(0)
   const [meteors, setMeteors] = useState<Meteor[]>([])
   const [powerUps, setPowerUps] = useState<PowerUp[]>([])
@@ -62,8 +62,11 @@ export default function SpaceDodge({ onComplete }: Props) {
 
   const { gameId, playerId } = useGameStore()
 
-  // Log untuk debugging
-  console.log("Rendering SpaceDodge with DurrrSpaceShip_2.png and Asteroid.png")
+  // Fungsi untuk menghitung multiplier kecepatan
+  const getSpeedMultiplier = () => {
+  if (timeLeft > 15) return 1.0
+  return 1 + ((15 - timeLeft) / 15) * 1.5 // 1.0 → 2.0
+}
 
   // ---------- BACKGROUND MUSIC ----------
   useEffect(() => {
@@ -83,30 +86,22 @@ export default function SpaceDodge({ onComplete }: Props) {
   // ---------- TIMER ----------
   useEffect(() => {
     if (gameOver) return
-    console.log("Timer effect started", { gameId, playerId })
-
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
-        console.log("Timer tick, timeLeft:", prev)
         if (prev <= 1) {
           clearInterval(timer)
-          console.log("Timer complete, final score:", Math.floor(score))
           setGameOver(true)
           return 0
         }
         return prev - 1
       })
     }, 1000)
-    return () => {
-      console.log("Timer effect cleanup")
-      clearInterval(timer)
-    }
-  }, [gameId, playerId, gameOver])
+    return () => clearInterval(timer)
+  }, [gameOver])
 
   // ---------- SAVE SCORE AND CALL ONCOMPLETE ----------
   useEffect(() => {
     if (gameOver && gameId && playerId) {
-      console.log("Saving score to Supabase", { gameId, playerId, score: Math.floor(score) })
       supabase
         .from("player_answers")
         .insert({
@@ -118,14 +113,7 @@ export default function SpaceDodge({ onComplete }: Props) {
         })
         .then(({ error }) => {
           if (error) {
-            console.error("Supabase insert error:", {
-              message: error.message,
-              details: error.details,
-              hint: error.hint,
-              code: error.code,
-            })
-          } else {
-            console.log("Supabase insert successful")
+            console.error("Supabase insert error:", error)
           }
         })
       onComplete(Math.floor(score))
@@ -185,16 +173,17 @@ export default function SpaceDodge({ onComplete }: Props) {
       const deltaTime = (currentTime - lastFrameTime.current) / 1000
       lastFrameTime.current = currentTime
 
+      const speedMultiplier = getSpeedMultiplier()
+
       setMeteors((prev) =>
         prev
-          .map((m) => ({ ...m, y: m.y + m.speed * deltaTime * 30 }))
+          .map((m) => ({ ...m, y: m.y + m.speed * deltaTime * 30 * speedMultiplier }))
           .filter((m) => {
             if (m.y > 110) return false
-            const hit = Math.abs(m.x - shipX) < 4 && m.y > 80 && m.y < 90
+            const hit = Math.abs(m.x - shipX) < 2.5 && m.y > 80 && m.y < 90
             if (hit) {
               setScore((s) => Math.max(0, s - 20))
               spawnParticles(m.x, m.y, 10, "#f87171")
-              // Putar suara tabrakan meteor
               if (collisionSound) {
                 collisionSound.currentTime = 0
                 collisionSound.play().catch((e) => console.error("Error playing collision sound:", e))
@@ -206,14 +195,13 @@ export default function SpaceDodge({ onComplete }: Props) {
 
       setPowerUps((prev) =>
         prev
-          .map((p) => ({ ...p, y: p.y + 1 * deltaTime * 30 }))
+          .map((p) => ({ ...p, y: p.y + 1 * deltaTime * 30 * speedMultiplier }))
           .filter((p) => {
             if (p.y > 110) return false
-            const hit = Math.abs(p.x - shipX) < 4 && p.y > 80 && p.y < 90
+            const hit = Math.abs(p.x - shipX) < 2.5 && p.y > 80 && p.y < 90
             if (hit) {
               setScore((s) => s + p.points)
               spawnParticles(p.x, p.y, 8, p.type === "star" ? "#fbbf24" : p.type === "heart" ? "#ec4899" : "#38bdf8")
-              // Putar suara power-up
               if (powerUpSound) {
                 powerUpSound.currentTime = 0
                 powerUpSound.play().catch((e) => console.error("Error playing power-up sound:", e))
@@ -238,7 +226,7 @@ export default function SpaceDodge({ onComplete }: Props) {
     }
     animationFrameId = requestAnimationFrame(move)
     return () => cancelAnimationFrame(animationFrameId)
-  }, [shipX, gameOver])
+  }, [shipX, gameOver, timeLeft])
 
   // ---------- SHIP CONTROL ----------
   const handleMove = (e: React.MouseEvent | React.TouchEvent) => {
@@ -249,7 +237,7 @@ export default function SpaceDodge({ onComplete }: Props) {
     setShipX(Math.max(5, Math.min(95, percent)))
   }
 
-  // ---------- CANVAS FOR PIXEL ART BACKGROUND ----------
+  // ---------- CANVAS FOR BACKGROUND IMAGE ----------
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -258,25 +246,9 @@ export default function SpaceDodge({ onComplete }: Props) {
 
     canvas.width = window.innerWidth
     canvas.height = window.innerHeight
-    ctx.imageSmoothingEnabled = false // Ensure crisp pixel art
 
-    // Pixelated stars
-    const stars: { x: number; y: number; size: number; opacity: number; speed: number }[] = []
-    for (let i = 0; i < 100; i++) {
-      stars.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        size: Math.random() > 0.8 ? 4 : 2,
-        opacity: Math.random(),
-        speed: Math.random() * 0.5 + 0.2,
-      })
-    }
-
-    // Pixelated planets
-    const planets: { x: number; y: number; size: number; color: string }[] = [
-      { x: canvas.width * 0.2, y: canvas.height * 0.3, size: 32, color: "#6b7280" },
-      { x: canvas.width * 0.7, y: canvas.height * 0.6, size: 24, color: "#4b5563" },
-    ]
+    const backgroundImage = new Image()
+    backgroundImage.src = "/images/space_background.jpg"
 
     let animationFrameId: number
     const animateBackground = () => {
@@ -284,26 +256,17 @@ export default function SpaceDodge({ onComplete }: Props) {
         cancelAnimationFrame(animationFrameId)
         return
       }
-      ctx.fillStyle = "#0a0a0a"
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-      // Draw planets
-      planets.forEach((planet) => {
-        ctx.fillStyle = planet.color
-        ctx.fillRect(planet.x, planet.y, planet.size, planet.size)
-      })
-
-      // Draw stars
-      stars.forEach((star) => {
-        ctx.fillStyle = `rgba(255, 255, 255, ${star.opacity})`
-        ctx.fillRect(star.x, star.y, star.size, star.size)
-        star.opacity += star.speed * 0.01
-        if (star.opacity > 1 || star.opacity < 0.2) star.speed = -star.speed
-      })
-
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      if (backgroundImage.complete) {
+        ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height)
+      }
       animationFrameId = requestAnimationFrame(animateBackground)
     }
-    animateBackground()
+
+    backgroundImage.onload = () => {
+      animateBackground()
+    }
+
     return () => cancelAnimationFrame(animationFrameId)
   }, [gameOver])
 
@@ -314,8 +277,8 @@ export default function SpaceDodge({ onComplete }: Props) {
       onMouseMove={handleMove}
       onTouchMove={handleMove}
     >
-      {/* Background Canvas for Pixel Art */}
-      <canvas ref={canvasRef} className="absolute inset-0" />
+      {/* Background Canvas */}
+      <canvas ref={canvasRef} className="absolute inset-0 z-0" />
 
       {/* HUD */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-4 bg-gradient-to-r from-purple-900/80 to-indigo-900/80 backdrop-blur-md px-6 py-3 rounded-lg border-2 border-yellow-300 shadow-lg">
@@ -324,7 +287,7 @@ export default function SpaceDodge({ onComplete }: Props) {
           <div className="w-32 h-2 bg-white/20 rounded-full overflow-hidden">
             <div
               className="h-full bg-yellow-300 transition-all"
-              style={{ width: `${(timeLeft / 10) * 100}%` }}
+              style={{ width: `${(timeLeft / 30) * 100}%` }}
             />
           </div>
         </div>
