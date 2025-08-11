@@ -12,8 +12,12 @@ import { useGameStore } from "@/lib/store"
 import { supabase } from "@/lib/supabase"
 import { fetchQuizzes, DUMMY_QUIZZES } from "@/lib/dummy-data"
 import type { Quiz } from "@/lib/types"
+import Image from "next/image"
 
 // Tombol gaya pixel
+// Catatan: Komponen PixelButton juga diimpor dari "@/components/PixelButton"
+// Anda bisa memilih untuk menggunakan salah satu atau menghapus definisi lokal ini
+// jika Anda ingin menggunakan versi yang diimpor secara eksklusif.
 function PixelButton({
   children,
   color = "blue",
@@ -187,7 +191,7 @@ export default function PlayPage() {
   // Fungsi saat pemain memilih jawaban
   const handleAnswerSelect = async (choice: {
     id: number
-    choice_text: string
+    choice_text: string | null // Perbarui tipe ini agar sesuai dengan types.ts
     is_correct: boolean
   }) => {
     if (isAnswered || !question) return
@@ -346,6 +350,21 @@ export default function PlayPage() {
             className="bg-white/10 border-4 border-white/20 p-6 rounded-lg mb-6"
           >
             <h2 className="text-xl mb-4">Question {currentQuestion + 1}</h2>
+            {/* Tampilkan gambar pertanyaan jika ada */}
+            {question.question_image_url && (
+              <div className="mb-6 flex justify-center">
+                <Image
+                  src={question.question_image_url || "/placeholder.svg"}
+                  alt={question.question_image_alt || "Gambar soal"}
+                  width={300} // Perkiraan lebar berdasarkan max-w-full
+                  height={200} // Perkiraan tinggi berdasarkan max-h-64
+                  sizes="(max-width: 768px) 100vw, 300px"
+                  priority
+                  className="max-w-full max-h-64 object-contain rounded-lg border-2 border-white/20"
+                  style={{ imageRendering: "pixelated" }}
+                />
+              </div>
+            )}
             <p className="text-lg mb-6">{question.question}</p>
 
             <div
@@ -373,7 +392,22 @@ export default function PlayPage() {
                       <span className="font-bold text-lg bg-black/30 px-2 py-1 rounded border border-white/20 min-w-[32px] text-center">
                         {getChoiceLabel(index)}
                       </span>
-                      <span className="flex-1">{choice.choice_text}</span>
+                      <div className="flex-1 flex items-center gap-3">
+                        {/* Tampilkan gambar pilihan jawaban jika ada */}
+                        {choice.choice_image_url && (
+                          <Image
+                            src={choice.choice_image_url || "/placeholder.svg"}
+                            alt={choice.choice_image_alt || "Pilihan jawaban"}
+                            width={48} // Sesuai dengan w-12 (12 * 4 = 48px)
+                            height={48} // Sesuai dengan h-12 (12 * 4 = 48px)
+                            sizes="48px"
+                            className="w-12 h-12 object-contain rounded border border-white/20"
+                            style={{ imageRendering: "pixelated" }}
+                          />
+                        )}
+                        {/* Tampilkan teks pilihan jawaban jika ada */}
+                        {choice.choice_text && <span className="flex-1">{choice.choice_text}</span>}
+                      </div>
                     </div>
                   </PixelButton>
                 )
