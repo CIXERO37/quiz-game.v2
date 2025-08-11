@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
@@ -7,13 +8,11 @@ import { supabase } from "@/lib/supabase"
 import { useGameStore } from "@/lib/store"
 
 // Inisialisasi audio (lazy loading)
-let backgroundMusic: HTMLAudioElement | null = null
 let powerUpSound: HTMLAudioElement | null = null
 let collisionSound: HTMLAudioElement | null = null
 
-const initAudio = () => {
+const initSoundEffects = () => {
   if (typeof Audio !== "undefined") {
-    backgroundMusic = new Audio("/audio/Space Pixel Background for Video Game - CraftPix - Game Assets.mp3")
     powerUpSound = new Audio("/audio/sound_untuk_dapat_poin.wav")
     collisionSound = new Audio("/audio/sound_untuk_kurangi_poin.wav")
   }
@@ -106,6 +105,7 @@ export default function SpaceDodge({ onComplete }: Props) {
   const [shipX, setShipX] = useState(50)
   const [gameOver, setGameOver] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const audioRef = useRef<HTMLAudioElement>(null)
   const lastFrameTime = useRef(performance.now())
   const animationRef = useRef<number>()
 
@@ -192,6 +192,11 @@ export default function SpaceDodge({ onComplete }: Props) {
           if (checkCollision(m.x, m.y)) {
             setScore(s => Math.max(0, s - 20))
             spawnParticles(m.x, m.y, 6, "#f87171")
+            if (collisionSound) {
+              collisionSound.currentTime = 0
+              collisionSound.volume = 0.5
+              collisionSound.play().catch((error) => console.error('Collision sound error:', error))
+            }
             return false
           }
           return true
@@ -208,6 +213,11 @@ export default function SpaceDodge({ onComplete }: Props) {
           if (checkCollision(p.x, p.y)) {
             setScore(s => s + p.points)
             spawnParticles(p.x, p.y, 5, p.type === "star" ? "#fbbf24" : p.type === "heart" ? "#ec4899" : "#38bdf8")
+            if (powerUpSound) {
+              powerUpSound.currentTime = 0
+              powerUpSound.volume = 0.5
+              powerUpSound.play().catch((error) => console.error('PowerUp sound error:', error))
+            }
             return false
           }
           return true
@@ -281,23 +291,54 @@ export default function SpaceDodge({ onComplete }: Props) {
     return () => clearInterval(timer)
   }, [gameOver])
 
-  // Background music
+  // Init sound effects
   useEffect(() => {
-    if (!gameOver) {
-      initAudio()
-      if (backgroundMusic && !isMobile.current) {
-        backgroundMusic.loop = true
-        backgroundMusic.volume = 0.3
-        backgroundMusic.play().catch(() => {})
-      }
+    initSoundEffects()
+  }, [])
+
+  // Handle background music autoplay
+  useEffect(() => {
+    if (audioRef.current && !gameOver) {
+      audioRef.current.volume = 0.3
+      audioRef.current.loop = true
+      audioRef.current.play().then(() => {
+        console.log('Background music started successfully')
+      }).catch((error) => {
+        console.error('Background music autoplay error:', error)
+        // Fallback: Coba lagi saat ada interaksi
+        const tryPlayOnInteract = () => {
+          audioRef.current?.play().then(() => {
+            console.log('Background music started on interaction')
+            document.removeEventListener('click', tryPlayOnInteract)
+            document.removeEventListener('touchstart', tryPlayOnInteract)
+            document.removeEventListener('keydown', tryPlayOnInteract)
+          }).catch((err) => console.error('Interaction play error:', err))
+        }
+        document.addEventListener('click', tryPlayOnInteract)
+        document.addEventListener('touchstart', tryPlayOnInteract)
+        document.addEventListener('keydown', tryPlayOnInteract)
+      })
     }
     return () => {
-      if (backgroundMusic) {
-        backgroundMusic.pause()
-        backgroundMusic.currentTime = 0
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current.currentTime = 0
       }
     }
   }, [gameOver])
+
+  // Touch control yang dioptimasi
+  const handleMove = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    if (!containerRef.current) return
+    
+    e.preventDefault()
+    
+    const rect = containerRef.current.getBoundingClientRect()
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
+    const percent = ((clientX - rect.left) / rect.width) * 100
+    
+    setShipX(Math.max(8, Math.min(92, percent)))
+  }, [])
 
   // Save score yang sudah diperbaiki
   useEffect(() => {
@@ -321,19 +362,6 @@ export default function SpaceDodge({ onComplete }: Props) {
     }
   }, [gameOver, gameId, playerId, score, onComplete])
 
-  // Touch control yang dioptimasi
-  const handleMove = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    if (!containerRef.current) return
-    
-    e.preventDefault()
-    
-    const rect = containerRef.current.getBoundingClientRect()
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
-    const percent = ((clientX - rect.left) / rect.width) * 100
-    
-    setShipX(Math.max(8, Math.min(92, percent)))
-  }, [])
-
   return (
     <div
       ref={containerRef}
@@ -347,6 +375,13 @@ export default function SpaceDodge({ onComplete }: Props) {
       <div className="pixel-space-bg">
         <div className="star-layer" />
       </div>
+
+      {/* Background music audio element */}
+      <audio
+        ref={audioRef}
+        src="/audio/Space Pixel Background for Video Game - CraftPix - Game Assets.mp3"
+        autoPlay
+      />
 
       {/* Background Canvas (optimized) */}
       <canvas 
