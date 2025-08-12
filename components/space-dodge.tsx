@@ -1,5 +1,6 @@
-
 "use client"
+
+import type React from "react"
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
@@ -113,9 +114,8 @@ export default function SpaceDodge({ onComplete }: Props) {
 
   // Mobile detection
   const isMobile = useRef(
-    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-      navigator.userAgent
-    ) || window.innerWidth <= 768
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+      window.innerWidth <= 768,
   )
 
   // Optimasi kecepatan untuk mobile
@@ -138,107 +138,111 @@ export default function SpaceDodge({ onComplete }: Props) {
   }
 
   // Particle system yang dioptimasi
-  const spawnParticles = useCallback((x: number, y: number, count: number, color: string) => {
-    const maxCount = isMobile.current ? Math.min(count, 5) : count
-    const newParticles: Particle[] = []
-    
-    for (let i = 0; i < maxCount; i++) {
-      newParticles.push({
-        id: Math.random().toString(36).slice(2),
-        x,
-        y,
-        vx: (Math.random() - 0.5) * 3,
-        vy: (Math.random() - 0.5) * 3,
-        size: Math.random() * 3 + 2,
-        life: 1,
-      })
-    }
-    
-    setParticles(prev => [...prev.slice(-LIMITS.particles + maxCount), ...newParticles])
-  }, [LIMITS.particles])
+  const spawnParticles = useCallback(
+    (x: number, y: number, count: number, color: string) => {
+      const maxCount = isMobile.current ? Math.min(count, 5) : count
+      const newParticles: Particle[] = []
+
+      for (let i = 0; i < maxCount; i++) {
+        newParticles.push({
+          id: Math.random().toString(36).slice(2),
+          x,
+          y,
+          vx: (Math.random() - 0.5) * 3,
+          vy: (Math.random() - 0.5) * 3,
+          size: Math.random() * 3 + 2,
+          life: 1,
+        })
+      }
+
+      setParticles((prev) => [...prev.slice(-LIMITS.particles + maxCount), ...newParticles])
+    },
+    [LIMITS.particles],
+  )
 
   // Hitbox yang dioptimasi untuk mobile
-  const checkCollision = useCallback((objX: number, objY: number) => {
-    const shipLeft = shipX - 5
-    const shipRight = shipX + 5
-    const shipTop = 82
-    const shipBottom = 90
-    
-    return (
-      objX >= shipLeft &&
-      objX <= shipRight &&
-      objY >= shipTop &&
-      objY <= shipBottom
-    )
-  }, [shipX])
+  const checkCollision = useCallback(
+    (objX: number, objY: number) => {
+      const shipLeft = shipX - 5
+      const shipRight = shipX + 5
+      const shipTop = 82
+      const shipBottom = 90
+
+      return objX >= shipLeft && objX <= shipRight && objY >= shipTop && objY <= shipBottom
+    },
+    [shipX],
+  )
 
   // Game loop yang dioptimasi
-  const gameLoop = useCallback((currentTime: number) => {
-    if (gameOver || !containerRef.current) {
-      if (animationRef.current) cancelAnimationFrame(animationRef.current)
-      return
-    }
+  const gameLoop = useCallback(
+    (currentTime: number) => {
+      if (gameOver || !containerRef.current) {
+        if (animationRef.current) cancelAnimationFrame(animationRef.current)
+        return
+      }
 
-    const deltaTime = Math.min((currentTime - lastFrameTime.current) / 1000, 0.033)
-    lastFrameTime.current = currentTime
-    const speed = deltaTime * 30 * getSpeedMultiplier()
+      const deltaTime = Math.min((currentTime - lastFrameTime.current) / 1000, 0.033)
+      lastFrameTime.current = currentTime
+      const speed = deltaTime * 30 * getSpeedMultiplier()
 
-    // Update meteors dengan limit
-    setMeteors(prev => 
-      prev
-        .map(m => ({ ...m, y: m.y + m.speed * speed }))
-        .filter(m => {
-          if (m.y > 110) return false
-          if (checkCollision(m.x, m.y)) {
-            setScore(s => Math.max(0, s - 20))
-            spawnParticles(m.x, m.y, 6, "#f87171")
-            if (collisionSound) {
-              collisionSound.currentTime = 0
-              collisionSound.volume = 0.5
-              collisionSound.play().catch((error) => console.error('Collision sound error:', error))
+      // Update meteors dengan limit
+      setMeteors((prev) =>
+        prev
+          .map((m) => ({ ...m, y: m.y + m.speed * speed }))
+          .filter((m) => {
+            if (m.y > 110) return false
+            if (checkCollision(m.x, m.y)) {
+              setScore((s) => Math.max(0, s - 20))
+              spawnParticles(m.x, m.y, 6, "#f87171")
+              if (collisionSound) {
+                collisionSound.currentTime = 0
+                collisionSound.volume = 0.5
+                collisionSound.play().catch((error) => console.error("Collision sound error:", error))
+              }
+              return false
             }
-            return false
-          }
-          return true
-        })
-        .slice(-LIMITS.meteors)
-    )
+            return true
+          })
+          .slice(-LIMITS.meteors),
+      )
 
-    // Update power-ups dengan limit
-    setPowerUps(prev =>
-      prev
-        .map(p => ({ ...p, y: p.y + speed }))
-        .filter(p => {
-          if (p.y > 110) return false
-          if (checkCollision(p.x, p.y)) {
-            setScore(s => s + p.points)
-            spawnParticles(p.x, p.y, 5, p.type === "star" ? "#fbbf24" : p.type === "heart" ? "#ec4899" : "#38bdf8")
-            if (powerUpSound) {
-              powerUpSound.currentTime = 0
-              powerUpSound.volume = 0.5
-              powerUpSound.play().catch((error) => console.error('PowerUp sound error:', error))
+      // Update power-ups dengan limit
+      setPowerUps((prev) =>
+        prev
+          .map((p) => ({ ...p, y: p.y + speed }))
+          .filter((p) => {
+            if (p.y > 110) return false
+            if (checkCollision(p.x, p.y)) {
+              setScore((s) => s + p.points)
+              spawnParticles(p.x, p.y, 5, p.type === "star" ? "#fbbf24" : p.type === "heart" ? "#ec4899" : "#38bdf8")
+              if (powerUpSound) {
+                powerUpSound.currentTime = 0
+                powerUpSound.volume = 0.5
+                powerUpSound.play().catch((error) => console.error("PowerUp sound error:", error))
+              }
+              return false
             }
-            return false
-          }
-          return true
-        })
-        .slice(-LIMITS.powerups)
-    )
+            return true
+          })
+          .slice(-LIMITS.powerups),
+      )
 
-    // Update particles
-    setParticles(prev =>
-      prev
-        .map(p => ({
-          ...p,
-          x: p.x + p.vx * deltaTime * 20,
-          y: p.y + p.vy * deltaTime * 20,
-          life: p.life - deltaTime * 2,
-        }))
-        .filter(p => p.life > 0)
-    )
+      // Update particles
+      setParticles((prev) =>
+        prev
+          .map((p) => ({
+            ...p,
+            x: p.x + p.vx * deltaTime * 20,
+            y: p.y + p.vy * deltaTime * 20,
+            life: p.life - deltaTime * 2,
+          }))
+          .filter((p) => p.life > 0),
+      )
 
-    animationRef.current = requestAnimationFrame(gameLoop)
-  }, [gameOver, getSpeedMultiplier, checkCollision, spawnParticles, LIMITS])
+      animationRef.current = requestAnimationFrame(gameLoop)
+    },
+    [gameOver, getSpeedMultiplier, checkCollision, spawnParticles],
+  )
 
   // Start game loop
   useEffect(() => {
@@ -259,7 +263,7 @@ export default function SpaceDodge({ onComplete }: Props) {
     const meteorTimer = setInterval(() => {
       const id = Math.random().toString(36).slice(2)
       const x = Math.random() * 90 + 5
-      setMeteors(prev => [...prev, { id, x, y: -10, speed: 1 + Math.random() * 2 }])
+      setMeteors((prev) => [...prev, { id, x, y: -10, speed: 1 + Math.random() * 2 }])
     }, SPAWN_RATES.meteor)
 
     const powerupTimer = setInterval(() => {
@@ -267,7 +271,7 @@ export default function SpaceDodge({ onComplete }: Props) {
       const x = Math.random() * 90 + 5
       const types = Object.keys(POWER_UPS_CONFIG) as (keyof typeof POWER_UPS_CONFIG)[]
       const type = types[Math.floor(Math.random() * types.length)]
-      setPowerUps(prev => [...prev, { id, x, y: -10, type, ...POWER_UPS_CONFIG[type] }])
+      setPowerUps((prev) => [...prev, { id, x, y: -10, type, ...POWER_UPS_CONFIG[type] }])
     }, SPAWN_RATES.powerup)
 
     return () => {
@@ -280,7 +284,7 @@ export default function SpaceDodge({ onComplete }: Props) {
   useEffect(() => {
     if (gameOver) return
     const timer = setInterval(() => {
-      setTimeLeft(prev => {
+      setTimeLeft((prev) => {
         if (prev <= 1) {
           setGameOver(true)
           return 0
@@ -301,23 +305,29 @@ export default function SpaceDodge({ onComplete }: Props) {
     if (audioRef.current && !gameOver) {
       audioRef.current.volume = 0.3
       audioRef.current.loop = true
-      audioRef.current.play().then(() => {
-        console.log('Background music started successfully')
-      }).catch((error) => {
-        console.error('Background music autoplay error:', error)
-        // Fallback: Coba lagi saat ada interaksi
-        const tryPlayOnInteract = () => {
-          audioRef.current?.play().then(() => {
-            console.log('Background music started on interaction')
-            document.removeEventListener('click', tryPlayOnInteract)
-            document.removeEventListener('touchstart', tryPlayOnInteract)
-            document.removeEventListener('keydown', tryPlayOnInteract)
-          }).catch((err) => console.error('Interaction play error:', err))
-        }
-        document.addEventListener('click', tryPlayOnInteract)
-        document.addEventListener('touchstart', tryPlayOnInteract)
-        document.addEventListener('keydown', tryPlayOnInteract)
-      })
+      audioRef.current
+        .play()
+        .then(() => {
+          console.log("Background music started successfully")
+        })
+        .catch((error) => {
+          console.error("Background music autoplay error:", error)
+          // Fallback: Coba lagi saat ada interaksi
+          const tryPlayOnInteract = () => {
+            audioRef.current
+              ?.play()
+              .then(() => {
+                console.log("Background music started on interaction")
+                document.removeEventListener("click", tryPlayOnInteract)
+                document.removeEventListener("touchstart", tryPlayOnInteract)
+                document.removeEventListener("keydown", tryPlayOnInteract)
+              })
+              .catch((err) => console.error("Interaction play error:", err))
+          }
+          document.addEventListener("click", tryPlayOnInteract)
+          document.addEventListener("touchstart", tryPlayOnInteract)
+          document.addEventListener("keydown", tryPlayOnInteract)
+        })
     }
     return () => {
       if (audioRef.current) {
@@ -330,13 +340,13 @@ export default function SpaceDodge({ onComplete }: Props) {
   // Touch control yang dioptimasi
   const handleMove = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     if (!containerRef.current) return
-    
+
     e.preventDefault()
-    
+
     const rect = containerRef.current.getBoundingClientRect()
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
+    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX
     const percent = ((clientX - rect.left) / rect.width) * 100
-    
+
     setShipX(Math.max(8, Math.min(92, percent)))
   }, [])
 
@@ -357,7 +367,7 @@ export default function SpaceDodge({ onComplete }: Props) {
             console.error("Supabase insert error:", error)
           }
         })
-      
+
       onComplete(Math.floor(score))
     }
   }, [gameOver, gameId, playerId, score, onComplete])
@@ -377,17 +387,13 @@ export default function SpaceDodge({ onComplete }: Props) {
       </div>
 
       {/* Background music audio element */}
-      <audio
-        ref={audioRef}
-        src="/audio/Space Pixel Background for Video Game - CraftPix - Game Assets.mp3"
-        autoPlay
-      />
+      <audio ref={audioRef} src="/audio/Space Pixel Background for Video Game - CraftPix - Game Assets.mp3" autoPlay />
 
       {/* Background Canvas (optimized) */}
-      <canvas 
-        ref={useRef<HTMLCanvasElement>(null)} 
-        className="z-0" 
-        style={{ imageRendering: "pixelated", pointerEvents: "none" }} 
+      <canvas
+        ref={useRef<HTMLCanvasElement>(null)}
+        className="z-0"
+        style={{ imageRendering: "pixelated", pointerEvents: "none" }}
       />
 
       {/* HUD */}
@@ -395,10 +401,7 @@ export default function SpaceDodge({ onComplete }: Props) {
         <div className="flex items-center gap-2">
           <span className="font-bold text-white">⏱ {timeLeft}s</span>
           <div className="w-32 h-2 bg-white/20 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-yellow-300 transition-all"
-              style={{ width: `${(timeLeft / 30) * 100}%` }}
-            />
+            <div className="h-full bg-yellow-300 transition-all" style={{ width: `${(timeLeft / 30) * 100}%` }} />
           </div>
         </div>
         <span className="font-bold text-yellow-300">⭐ {Math.floor(score)}</span>
@@ -409,7 +412,7 @@ export default function SpaceDodge({ onComplete }: Props) {
         className="absolute bottom-8 w-12 h-12 flex items-center justify-center no-flicker"
         style={{ left: `${shipX}%`, x: "-50%" }}
         animate={{ scale: [1, 1.05, 1], rotate: [0, 5, -5, 0] }}
-        transition={{ repeat: Infinity, duration: 1.5 }}
+        transition={{ repeat: Number.POSITIVE_INFINITY, duration: 1.5 }}
       >
         <img
           src="/images/DurrrSpaceShip_2.png"
@@ -427,7 +430,7 @@ export default function SpaceDodge({ onComplete }: Props) {
             initial={{ opacity: 0, scale: 0.5, rotate: 0 }}
             animate={{ opacity: 1, scale: 1, rotate: 360 }}
             exit={{ opacity: 0, scale: 0.5 }}
-            transition={{ rotate: { duration: 2, repeat: Infinity, ease: "linear" } }}
+            transition={{ rotate: { duration: 2, repeat: Number.POSITIVE_INFINITY, ease: "linear" } }}
             className="absolute w-8 h-8 no-flicker"
             style={{ left: `${m.x}%`, top: `${m.y}%`, x: "-50%", y: "-50%" }}
           >
@@ -449,7 +452,7 @@ export default function SpaceDodge({ onComplete }: Props) {
             initial={{ opacity: 0, scale: 0.5 }}
             animate={{ opacity: 1, scale: 1, rotate: [0, 10, -10, 0] }}
             exit={{ opacity: 0, scale: 0.5 }}
-            transition={{ rotate: { repeat: Infinity, duration: 1.5 } }}
+            transition={{ rotate: { repeat: Number.POSITIVE_INFINITY, duration: 1.5 } }}
             className="absolute w-8 h-8 text-white rounded-full flex items-center justify-center drop-shadow-[0_0_6px_rgba(255,255,255,0.8)] no-flicker"
             style={{
               left: `${p.x}%`,

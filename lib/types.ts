@@ -15,15 +15,23 @@ export interface Question {
   question_image_url?: string | null // URL gambar pertanyaan
   question_image_alt?: string | null // Alt text untuk gambar pertanyaan
   choices: Choice[]
+  options?: string[] // For backward compatibility
+  correct_answer?: number // For backward compatibility
+  time_limit?: number // For backward compatibility
+  points?: number // For backward compatibility
 }
 
 export interface Quiz {
+  questionCount: number
+  timeLimit: number
   id: number
   title: string
   description: string
   difficulty_level: string
   created_at: string
   questions: Question[]
+  thumbnail?: string // For backward compatibility
+  updated_at?: string // For backward compatibility
 }
 
 export interface Game {
@@ -33,6 +41,10 @@ export interface Game {
   is_started: boolean
   finished: boolean
   created_at: string
+  code?: string // Game code for joining
+  host_id?: string // Host identifier
+  time_limit?: number // Time limit setting
+  question_count?: number // Number of questions setting
 }
 
 export interface Player {
@@ -42,6 +54,8 @@ export interface Player {
   score: number
   correct_answers: number
   created_at: string
+  avatar?: string // Player avatar
+  joined_at?: string // When player joined
 }
 
 export interface PlayerAnswer {
@@ -52,6 +66,13 @@ export interface PlayerAnswer {
   is_correct: boolean
   points_earned: number
   created_at: string
+  selected_answer?: number // Selected answer index
+  answered_at?: string // When answer was submitted
+}
+
+export interface GameSettings {
+  timeLimit: number
+  questionCount: number
 }
 
 export interface AVATAR_OPTION {
