@@ -44,7 +44,7 @@ function PixelButton({
 }
 
 export default function PlayPage() {
-  const [timeLeft, setTimeLeft] = useState(300)
+  const [timeLeft, setTimeLeft] = useState(0)
   const [selectedChoiceId, setSelectedChoiceId] = useState<number | null>(null)
   const [isAnswered, setIsAnswered] = useState(false)
   const [showResult, setShowResult] = useState(false)
@@ -56,6 +56,7 @@ export default function PlayPage() {
   const [quiz, setQuiz] = useState<Quiz | null>(null)
   const [loading, setLoading] = useState(true)
   const [showMiniGame, setShowMiniGame] = useState(false)
+  const [gameSettings, setGameSettings] = useState<{ timeLimit: number; questionCount: number } | null>(null)
 
   const router = useRouter()
   const {
@@ -70,25 +71,43 @@ export default function PlayPage() {
     incrementCorrectAnswers,
   } = useGameStore()
 
-  // Load quiz
   useEffect(() => {
-    const loadQuiz = async () => {
-      await fetchQuizzes()
-      const found = DUMMY_QUIZZES.find((q) => q.id === quizId)
-      setQuiz(found || null)
-      setCurrentQuestion(0)
-      setLoading(false)
+    const loadQuizAndSettings = async () => {
+      if (!gameId || !quizId) {
+        router.replace("/")
+        return
+      }
+
+      try {
+        await fetchQuizzes()
+        const found = DUMMY_QUIZZES.find((q) => q.id === quizId)
+        setQuiz(found || null)
+
+        const { data: gameData } = await supabase
+          .from("games")
+          .select("time_limit, question_count")
+          .eq("id", gameId)
+          .single()
+
+        if (gameData) {
+          setGameSettings({
+            timeLimit: gameData.time_limit,
+            questionCount: gameData.question_count,
+          })
+          setTimeLeft(gameData.time_limit)
+        }
+
+        setCurrentQuestion(0)
+        setLoading(false)
+      } catch (error) {
+        console.error("Error loading quiz and settings:", error)
+        setLoading(false)
+      }
     }
 
-    if (!gameId || !quizId) {
-      router.replace("/")
-      return
-    }
-
-    loadQuiz()
+    loadQuizAndSettings()
   }, [gameId, quizId, router, setCurrentQuestion])
 
-  // 🔥 Listener untuk redirect ketika host selesaikan kuis
   useEffect(() => {
     if (!gameId || loading) return
 
@@ -110,9 +129,8 @@ export default function PlayPage() {
     }
   }, [gameId, loading, router])
 
-  // Cek apakah host sudah mulai kuis
   useEffect(() => {
-    if (!gameId || loading) return
+    if (!gameId || isQuizStarted || showCountdown || loading) return
 
     const checkStart = async () => {
       const { data } = await supabase.from("games").select("is_started").eq("id", gameId).single()
@@ -125,7 +143,6 @@ export default function PlayPage() {
     return () => clearInterval(interval)
   }, [gameId, isQuizStarted, showCountdown, loading])
 
-  // Countdown 10 detik sebelum mulai
   useEffect(() => {
     if (!showCountdown) return
     const timer = setInterval(() => {
@@ -142,7 +159,6 @@ export default function PlayPage() {
     return () => clearInterval(timer)
   }, [showCountdown])
 
-  // Timer kuis
   useEffect(() => {
     if (!isQuizStarted || !quiz) return
     const timer = setInterval(() => {
@@ -158,28 +174,25 @@ export default function PlayPage() {
     return () => clearInterval(timer)
   }, [isQuizStarted, quiz])
 
-  // Redirect otomatis
   useEffect(() => {
     if (shouldNavigate) router.replace("/result")
   }, [shouldNavigate, router])
 
-  // Acak pertanyaan dan jawaban
   const shuffledQuestions = useMemo(() => {
-    if (!quiz) return []
+    if (!quiz || !gameSettings) return []
     return [...quiz.questions]
       .sort(() => Math.random() - 0.5)
+      .slice(0, gameSettings.questionCount)
       .map((question) => ({
         ...question,
-        // Acak urutan pilihan jawaban untuk setiap pertanyaan
         choices: [...question.choices].sort(() => Math.random() - 0.5),
       }))
-  }, [quiz])
+  }, [quiz, gameSettings])
 
   const question = shuffledQuestions[currentQuestion]
 
-  // Fungsi untuk mendapatkan label huruf (A, B, C, dst.)
   const getChoiceLabel = (index: number) => {
-    return String.fromCharCode(65 + index) // 65 adalah kode ASCII untuk 'A'
+    return String.fromCharCode(65 + index)
   }
 
   const formatTime = (seconds: number) => {
@@ -188,10 +201,9 @@ export default function PlayPage() {
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
   }
 
-  // Fungsi saat pemain memilih jawaban
   const handleAnswerSelect = async (choice: {
     id: number
-    choice_text: string | null // Perbarui tipe ini agar sesuai dengan types.ts
+    choice_text: string | null
     is_correct: boolean
   }) => {
     if (isAnswered || !question) return
@@ -225,10 +237,9 @@ export default function PlayPage() {
   }
 
   const nextQuestion = async () => {
-    if (!question || !quiz) return
+    if (!question || !quiz || !gameSettings) return
 
-    // 🔥 Jika ini soal terakhir: tandai game selesai
-    if (currentQuestion >= shuffledQuestions.length - 1) {
+    if (currentQuestion >= gameSettings.questionCount - 1) {
       await supabase.from("games").update({ finished: true, is_started: false }).eq("id", gameId)
       setShouldNavigate(true)
       return
@@ -257,7 +268,7 @@ export default function PlayPage() {
     </div>
   )
 
-  if (loading)
+  if (loading || !gameSettings)
     return (
       <>
         <Background />
@@ -340,7 +351,7 @@ export default function PlayPage() {
             </div>
           </div>
 
-          <Progress value={((currentQuestion + 1) / shuffledQuestions.length) * 100} className="mb-6" />
+          <Progress value={((currentQuestion + 1) / gameSettings.questionCount) * 100} className="mb-6" />
 
           <motion.div
             key={currentQuestion}
@@ -349,15 +360,16 @@ export default function PlayPage() {
             exit={{ opacity: 0, y: -20 }}
             className="bg-white/10 border-4 border-white/20 p-6 rounded-lg mb-6"
           >
-            <h2 className="text-xl mb-4">Question {currentQuestion + 1}</h2>
-            {/* Tampilkan gambar pertanyaan jika ada */}
+            <h2 className="text-xl mb-4">
+              Question {currentQuestion + 1} of {gameSettings.questionCount}
+            </h2>
             {question.question_image_url && (
               <div className="mb-6 flex justify-center">
                 <Image
                   src={question.question_image_url || "/placeholder.svg"}
                   alt={question.question_image_alt || "Gambar soal"}
-                  width={300} // Perkiraan lebar berdasarkan max-w-full
-                  height={200} // Perkiraan tinggi berdasarkan max-h-64
+                  width={300}
+                  height={200}
                   sizes="(max-width: 768px) 100vw, 300px"
                   priority
                   className="max-w-full max-h-64 object-contain rounded-lg border-2 border-white/20"
@@ -393,19 +405,17 @@ export default function PlayPage() {
                         {getChoiceLabel(index)}
                       </span>
                       <div className="flex-1 flex items-center gap-3">
-                        {/* Tampilkan gambar pilihan jawaban jika ada */}
                         {choice.choice_image_url && (
                           <Image
                             src={choice.choice_image_url || "/placeholder.svg"}
                             alt={choice.choice_image_alt || "Pilihan jawaban"}
-                            width={48} // Sesuai dengan w-12 (12 * 4 = 48px)
-                            height={48} // Sesuai dengan h-12 (12 * 4 = 48px)
+                            width={48}
+                            height={48}
                             sizes="48px"
                             className="w-12 h-12 object-contain rounded border border-white/20"
                             style={{ imageRendering: "pixelated" }}
                           />
                         )}
-                        {/* Tampilkan teks pilihan jawaban jika ada */}
                         {choice.choice_text && <span className="flex-1">{choice.choice_text}</span>}
                       </div>
                     </div>
