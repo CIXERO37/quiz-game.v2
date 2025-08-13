@@ -109,7 +109,7 @@ export default function WaitPage() {
           />
 
           <p className="text-lg mb-2 drop-shadow-[1px_1px_0px_#000]">{playerName}</p>
-          <p className="text-sm text-white/70 mb-6">Waiting for host{dots}</p>
+          <p className="text-sm text-white/70 mb-6">Waiting to start{dots}</p>
 
           <div className="flex items-center justify-center gap-2 mb-4">
             <Clock className="w-5 h-5 text-yellow-400" />
