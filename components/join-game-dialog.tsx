@@ -1,34 +1,20 @@
 /* eslint-disable @next/next/no-img-element */
 "use client"
 
-import { useState } from 'react'
-import { motion } from 'framer-motion'
-import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage
-} from '@/components/ui/form'
-import { useGameStore } from '@/lib/store'
-import { supabase } from '@/lib/supabase'
-import { v4 as uuidv4 } from 'uuid'
+import { useState, useEffect } from "react"
+import { motion } from "framer-motion"
+import { useRouter } from "next/navigation"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import * as z from "zod"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { useGameStore } from "@/lib/store"
+import { supabase } from "@/lib/supabase"
+import { v4 as uuidv4 } from "uuid"
 
 // 8 Binatang lucu dari DiceBear API
 const ANIMAL_AVATARS = [
@@ -39,12 +25,12 @@ const ANIMAL_AVATARS = [
   "https://api.dicebear.com/9.x/micah/svg?seed=monkey",
   "https://api.dicebear.com/9.x/micah/svg?seed=tiger",
   "https://api.dicebear.com/9.x/micah/svg?seed=panda",
-  "https://api.dicebear.com/9.x/micah/svg?seed=koala"
+  "https://api.dicebear.com/9.x/micah/svg?seed=koala",
 ]
 
 const joinGameSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
-  gameCode: z.string().min(6, 'Game code must be 6 characters').max(6, 'Game code must be 6 characters')
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  gameCode: z.string().min(6, "Game code must be 6 characters").max(6, "Game code must be 6 characters"),
 })
 
 type JoinGameForm = z.infer<typeof joinGameSchema>
@@ -52,9 +38,10 @@ type JoinGameForm = z.infer<typeof joinGameSchema>
 interface JoinGameDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  initialGameCode?: string // Added prop for pre-filling game code
 }
 
-export function JoinGameDialog({ open, onOpenChange }: JoinGameDialogProps) {
+export function JoinGameDialog({ open, onOpenChange, initialGameCode = "" }: JoinGameDialogProps) {
   const [selectedAvatar, setSelectedAvatar] = useState<string>(ANIMAL_AVATARS[0])
   const [isLoading, setIsLoading] = useState(false)
 
@@ -64,34 +51,40 @@ export function JoinGameDialog({ open, onOpenChange }: JoinGameDialogProps) {
   const form = useForm<JoinGameForm>({
     resolver: zodResolver(joinGameSchema),
     defaultValues: {
-      name: '',
-      gameCode: ''
-    }
+      name: "",
+      gameCode: initialGameCode, // Use initial game code from props
+    },
   })
+
+  useEffect(() => {
+    if (initialGameCode) {
+      form.setValue("gameCode", initialGameCode)
+    }
+  }, [initialGameCode, form])
 
   const onSubmit = async (data: JoinGameForm) => {
     setIsLoading(true)
     try {
       const { data: game, error: gameError } = await supabase
-        .from('games')
-        .select('*')
-        .eq('code', data.gameCode.toUpperCase())
-        .eq('status', 'waiting')
+        .from("games")
+        .select("*")
+        .eq("code", data.gameCode.toUpperCase())
+        .eq("status", "waiting")
         .single()
 
       if (gameError || !game) {
-        form.setError('gameCode', { message: 'Game not found or already started' })
+        form.setError("gameCode", { message: "Game not found or already started" })
         return
       }
 
       const playerId = uuidv4()
-      await supabase.from('players').insert({
+      await supabase.from("players").insert({
         id: playerId,
         game_id: game.id,
         name: data.name,
         avatar: selectedAvatar,
         score: 0,
-        current_question: 0
+        current_question: 0,
       })
 
       setPlayer(playerId, data.name, selectedAvatar)
@@ -100,7 +93,7 @@ export function JoinGameDialog({ open, onOpenChange }: JoinGameDialogProps) {
       setQuizId(game.quiz_id)
       setIsHost(false)
 
-      router.push('/wait')
+      router.push("/wait")
       onOpenChange(false)
     } catch {
       // ignore
@@ -155,7 +148,7 @@ export function JoinGameDialog({ open, onOpenChange }: JoinGameDialogProps) {
             />
 
             <div>
-              <Label className="text-sm font-medium mb-3 block">Choose Your  Avatar</Label>
+              <Label className="text-sm font-medium mb-3 block">Choose Your Avatar</Label>
               <div className="grid grid-cols-4 gap-3 mb-3">
                 {ANIMAL_AVATARS.map((avatarUrl, index) => (
                   <motion.button
@@ -166,11 +159,15 @@ export function JoinGameDialog({ open, onOpenChange }: JoinGameDialogProps) {
                     onClick={() => setSelectedAvatar(avatarUrl)}
                     className={`relative w-16 h-16 rounded-full overflow-hidden border-2 transition-all ${
                       selectedAvatar === avatarUrl
-                        ? 'border-purple-500 ring-2 ring-purple-200'
-                        : 'border-gray-200 hover:border-purple-300'
+                        ? "border-purple-500 ring-2 ring-purple-200"
+                        : "border-gray-200 hover:border-purple-300"
                     }`}
                   >
-                    <img src={avatarUrl} alt={`Animal ${index + 1}`} className="w-full h-full object-cover" />
+                    <img
+                      src={avatarUrl || "/placeholder.svg"}
+                      alt={`Animal ${index + 1}`}
+                      className="w-full h-full object-cover"
+                    />
                   </motion.button>
                 ))}
               </div>
@@ -181,7 +178,7 @@ export function JoinGameDialog({ open, onOpenChange }: JoinGameDialogProps) {
               disabled={isLoading}
               className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 rounded-xl shadow-lg"
             >
-              {isLoading ? 'Joining...' : 'Join Game'}
+              {isLoading ? "Joining..." : "Join Game"}
             </Button>
           </form>
         </Form>
