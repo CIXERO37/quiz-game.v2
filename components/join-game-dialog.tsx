@@ -103,7 +103,7 @@ export function JoinGameDialog({ open, onOpenChange, initialGameCode = "" }: Joi
       setIsHost(false)
 
       console.log("Successfully joined game, redirecting to wait page") // Added debug logging
-      router.push("/wait")
+      router.push(`/wait?gameId=${game.id}&playerId=${playerId}&playerName=${data.name}&playerAvatar=${selectedAvatar}`)
       onOpenChange(false)
     } catch (error) {
       console.error("Error joining game:", error) // Added debug logging

@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState, useEffect, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { useRouter } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { Clock } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import SpaceDodge from "@/components/space-dodge"
@@ -44,6 +44,12 @@ function PixelButton({
 }
 
 export default function PlayPage() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const gameId = searchParams.get("gameId")
+  const playerId = searchParams.get("playerId")
+  const quizId = searchParams.get("quizId")
+
   const [timeLeft, setTimeLeft] = useState(0)
   const [selectedChoiceId, setSelectedChoiceId] = useState<number | null>(null)
   const [isAnswered, setIsAnswered] = useState(false)
@@ -58,11 +64,10 @@ export default function PlayPage() {
   const [showMiniGame, setShowMiniGame] = useState(false)
   const [gameSettings, setGameSettings] = useState<{ timeLimit: number; questionCount: number } | null>(null)
 
-  const router = useRouter()
   const {
-    gameId,
-    playerId,
-    quizId,
+    gameId: contextGameId,
+    playerId: contextPlayerId,
+    quizId: contextQuizId,
     currentQuestion,
     score,
     correctAnswers,
@@ -70,6 +75,13 @@ export default function PlayPage() {
     addScore,
     incrementCorrectAnswers,
   } = useGameStore()
+
+  useEffect(() => {
+    // Jika salah satu parameter tidak ada, redirect ke halaman utama
+    if (!gameId || !playerId || !quizId) {
+      router.replace("/")
+    }
+  }, [gameId, playerId, quizId, router])
 
   useEffect(() => {
     const loadQuizAndSettings = async () => {
@@ -80,7 +92,7 @@ export default function PlayPage() {
 
       try {
         await fetchQuizzes()
-        const found = DUMMY_QUIZZES.find((q) => q.id === quizId)
+        const found = DUMMY_QUIZZES.find((q) => String(q.id) === quizId)
         setQuiz(found || null)
 
         const { data: gameData } = await supabase
@@ -260,10 +272,13 @@ export default function PlayPage() {
 
   const Background = () => (
     <div className="fixed inset-0 z-0 overflow-hidden">
-      <div className="absolute inset-0 bg-[#87CEEB]" style={{ imageRendering: "pixelated" }} />
-      <div className="absolute bottom-0 w-full h-1/3 bg-[#8B4513]" style={{ imageRendering: "pixelated" }}>
-        <div className="absolute top-0 w-full h-6 bg-[#228B22]" style={{ imageRendering: "pixelated" }} />
-      </div>
+      <div
+        className="absolute inset-0 bg-cover bg-center"
+        style={{
+          backgroundImage: 'url("/images/space_bg.jpg")',
+          imageRendering: "pixelated",
+        }}
+      />
       <div className="absolute inset-0 bg-black/40" />
     </div>
   )
