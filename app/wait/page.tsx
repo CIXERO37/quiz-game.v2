@@ -2,15 +2,21 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Clock } from "lucide-react";
 import { useGameStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { getPresenceChannel } from "@/lib/presence";
 
 export default function WaitPage() {
+  const searchParams = useSearchParams();
   const router = useRouter();
-  const { gameId, playerName, playerAvatar, clearGame } = useGameStore();
+  const gameId = searchParams.get("gameId") || useGameStore().gameId;
+  const playerId = searchParams.get("playerId") || useGameStore().playerId;
+  const quizId = searchParams.get("quizId") || useGameStore().quizId;
+  const playerName = searchParams.get("playerName") || useGameStore().playerName;
+  const playerAvatar = searchParams.get("playerAvatar") || useGameStore().playerAvatar;
+  const { clearGame } = useGameStore();
   const [dots, setDots] = useState("");
 
   useEffect(() => {
@@ -31,7 +37,7 @@ export default function WaitPage() {
           .eq("id", gameId)
           .single();
         if (data?.is_started && !error) {
-          router.replace("/play");
+          router.replace(`/play?gameId=${gameId}&playerId=${playerId}&quizId=${quizId}&playerName=${playerName}&playerAvatar=${playerAvatar}`);
         }
       } catch (error) {
         console.error("Polling error:", error);

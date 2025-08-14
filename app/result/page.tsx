@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Trophy, Medal, Star, Home } from 'lucide-react'
 import confetti from 'canvas-confetti'
 import { Button } from '@/components/ui/button'
@@ -21,14 +21,15 @@ interface PlayerResult {
 }
 
 export default function ResultPage() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const gameId = searchParams.get("gameId") || useGameStore().gameId
+  const playerId = searchParams.get("playerId") || useGameStore().playerId
   const [playerResults, setPlayerResults] = useState<PlayerResult[]>([])
   const [userPosition, setUserPosition] = useState<number>(0)
   const [isLoading, setIsLoading] = useState(true)
-  const router = useRouter()
   
   const { 
-    gameId, 
-    playerId, 
     playerName, 
     playerAvatar, 
     score, 
@@ -38,13 +39,12 @@ export default function ResultPage() {
 
   useEffect(() => {
     if (!gameId) {
-      router.push('/')
+      router.push("/")
       return
     }
 
     fetchResults()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameId])
+  }, [gameId, playerId, router])
 
   const fetchResults = async () => {
     try {

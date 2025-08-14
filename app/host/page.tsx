@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Play, Users, QrCode, Clock, UsersRound, Timer, HelpCircle, Copy, Check } from "lucide-react"
 import { QRCodeSVG } from "qrcode.react"
 import { useGameStore } from "@/lib/store"
@@ -63,6 +63,19 @@ interface PlayerProgress {
 }
 
 export default function HostPage() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const gameId = searchParams.get("gameId")
+  const gameCode = searchParams.get("gameCode")
+  const quizId = searchParams.get("quizId")
+
+  // Redirect jika parameter penting tidak ada
+  useEffect(() => {
+    if (!gameId || !gameCode || !quizId) {
+      router.replace("/")
+    }
+  }, [gameId, gameCode, quizId, router])
+
   const [isStarting, setIsStarting] = useState(false)
   const [playerProgress, setPlayerProgress] = useState<PlayerProgress[]>([])
   const [quizStarted, setQuizStarted] = useState(false) // ← default false
@@ -74,12 +87,16 @@ export default function HostPage() {
   const [showRulesDialog, setShowRulesDialog] = useState(false)
   const [quizTimeLeft, setQuizTimeLeft] = useState(0)
   const [isTimerActive, setIsTimerActive] = useState(false)
+  const [leaderboardAnimated, setLeaderboardAnimated] = useState(false)
 
-  const router = useRouter()
+  function handleAnimationComplete() {
+  setLeaderboardAnimated(true)
+}
+
   const {
-    gameCode,
-    gameId,
-    quizId,
+    gameCode: storedGameCode,
+    gameId: storedGameId,
+    quizId: storedQuizId,
     players,
     setPlayers,
     gameSettings,
@@ -136,7 +153,7 @@ export default function HostPage() {
       setLoading(true)
       try {
         const quizzes = await fetchQuizzes()
-        const found = quizzes.find((q) => q.id === quizId)
+        const found = quizzes.find((q) => q.id === Number(quizId))
         if (!found) {
           toast.error("Quiz not found.")
           router.push("/")
@@ -253,6 +270,7 @@ export default function HostPage() {
   useEffect(() => {
     if (!gameId) return
 
+    // Subscriptions
     const gameSubscription = supabase
       .channel("game_status")
       .on(
@@ -280,7 +298,6 @@ export default function HostPage() {
             toast.error(`👋 ${payload.old.name} left the game`)
             return
           }
-
           if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
             fetchPlayers()
           }
@@ -288,27 +305,33 @@ export default function HostPage() {
       )
       .subscribe()
 
-    const answersSubscription = supabase
-      .channel("player_answers")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "player_answers", filter: `game_id=eq.${gameId}` },
-        () => {
-          if (quizStarted) {
-            setTimeout(() => updatePlayerProgress(), 1000)
-          }
-        },
-      )
-      .subscribe()
+    let answersSubscription: any = null
+    if (!showLeaderboard) {
+      answersSubscription = supabase
+        .channel("player_answers")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "player_answers", filter: `game_id=eq.${gameId}` },
+          () => {
+            if (quizStarted) {
+              setTimeout(() => updatePlayerProgress(), 1000)
+            }
+          },
+        )
+        .subscribe()
+    }
 
     fetchPlayers()
 
+    // Cleanup: unsubscribe all channels
     return () => {
       supabase.removeChannel(gameSubscription)
       supabase.removeChannel(playersSubscription)
-      supabase.removeChannel(answersSubscription)
+      if (answersSubscription) {
+        supabase.removeChannel(answersSubscription)
+      }
     }
-  }, [gameId, fetchPlayers])
+  }, [gameId, fetchPlayers, quizStarted, showLeaderboard])
 
   useEffect(() => {
     if (quizStarted && gameId && quiz) {
@@ -360,13 +383,13 @@ export default function HostPage() {
         }
         return prev - 1
       })
-    }, 1000)
+    }, 20000)
 
     return () => clearInterval(timer)
   }, [isTimerActive, quizTimeLeft])
 
   const handleCopyCode = () => {
-    navigator.clipboard.writeText(gameCode)
+    navigator.clipboard.writeText(gameCode ?? "")
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -419,7 +442,7 @@ export default function HostPage() {
   }
 
   /* PodiumLeaderboard component */
-  const PodiumLeaderboard = () => {
+  const PodiumLeaderboard = ({ animateOnce, onAnimationComplete }: { animateOnce: boolean, onAnimationComplete: () => void }) => {
     const sortedPlayers = [...playerProgress].sort((a, b) => b.score - a.score)
     const first = sortedPlayers[0] || {
       name: "No Player",
@@ -441,7 +464,9 @@ export default function HostPage() {
     return (
       <motion.div
         initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
+        animate={animateOnce ? { opacity: 1 } : { opacity: 1 }}
+        transition={{ duration: 0.8 }}
+        onAnimationComplete={animateOnce ? onAnimationComplete : undefined}
         className="min-h-screen flex items-center justify-center p-4"
       >
         <div className="relative w-full max-w-5xl">
@@ -641,7 +666,10 @@ export default function HostPage() {
 
       <div className="relative z-10 container mx-auto px-4 py-8 min-h-screen font-mono text-white">
         {showLeaderboard ? (
-          <PodiumLeaderboard />
+          <PodiumLeaderboard
+            animateOnce={!leaderboardAnimated}
+            onAnimationComplete={handleAnimationComplete}
+          />
         ) : !quizStarted ? (
           /* ---------- WAITING ROOM ---------- */
           <div className="grid lg:grid-cols-2 gap-8">
