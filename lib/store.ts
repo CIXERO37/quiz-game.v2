@@ -1,79 +1,80 @@
-import { create } from "zustand"
-import { persist } from "zustand/middleware"
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 export interface Player {
-  id: string
-  name: string
-  avatar: string
-  score: number
-  current_question: number
+  id: string;
+  name: string;
+  avatar: string;
+  score: number;
+  current_question: number;
 }
 
 export interface Question {
-  id: number
-  question: string
-  image?: string
-  options: string[]
-  correct_answer: string
-  option_images?: string[]
+  id: number;
+  question: string;
+  image?: string;
+  options: string[];
+  correct_answer: string;
+  option_images?: string[];
 }
 
 export interface Quiz {
-  id: number
-  title: string
-  description: string
-  questions: Question[]
+  id: number;
+  title: string;
+  description: string;
+  questions: Question[];
 }
 
 export interface GameState {
+  clearGame(): unknown;
   // Game info
-  gameCode: string
-  gameId: string
-  quizId: number
-  gameStatus: "waiting" | "playing" | "finished"
+  gameCode: string;
+  gameId: string;
+  quizId: number;
+  gameStatus: "waiting" | "playing" | "finished";
 
   // Player info
-  playerId: string
-  playerName: string
-  playerAvatar: string
-  isHost: boolean
+  playerId: string;
+  playerName: string;
+  playerAvatar: string;
+  isHost: boolean;
 
   // Quiz state
-  currentQuestion: number
-  score: number
-  correctAnswers: number
-  players: Player[]
+  currentQuestion: number;
+  score: number;
+  correctAnswers: number;
+  players: Player[];
 
   // Mini-game state
-  showMiniGame: boolean
-  miniGameScore: number
+  showMiniGame: boolean;
+  miniGameScore: number;
 
   // Game settings
   gameSettings: {
-    timeLimit: number
-    questionCount: number
-  }
+    timeLimit: number;
+    questionCount: number;
+  };
 
   // Actions
-  setGameCode: (code: string) => void
-  setGameId: (id: string) => void
-  setQuizId: (id: number) => void
-  setGameStatus: (status: "waiting" | "playing" | "finished") => void
-  setPlayer: (id: string, name: string, avatar: string) => void
-  setIsHost: (isHost: boolean) => void
-  setCurrentQuestion: (question: number) => void
-  setScore: (score: number) => void
-  addScore: (points: number) => void
-  setCorrectAnswers: (count: number) => void
-  incrementCorrectAnswers: () => void
-  setPlayers: (players: Player[]) => void
-  addPlayer: (player: Player) => void
-  updatePlayer: (playerId: string, updates: Partial<Player>) => void
-  setShowMiniGame: (show: boolean) => void
-  setMiniGameScore: (score: number) => void
-  addMiniGameScore: (points: number) => void
-  setGameSettings: (settings: { timeLimit: number; questionCount: number }) => void
-  resetGame: () => void
+  setGameCode: (code: string) => void;
+  setGameId: (id: string) => void;
+  setQuizId: (id: number) => void;
+  setGameStatus: (status: "waiting" | "playing" | "finished") => void;
+  setPlayer: (id: string, name: string, avatar: string) => void;
+  setIsHost: (isHost: boolean) => void;
+  setCurrentQuestion: (question: number) => void;
+  setScore: (score: number) => void;
+  addScore: (points: number) => void;
+  setCorrectAnswers: (count: number) => void;
+  incrementCorrectAnswers: () => void;
+  setPlayers: (players: Player[]) => void;
+  addPlayer: (player: Player) => void;
+  updatePlayer: (playerId: string, updates: Partial<Player>) => void;
+  setShowMiniGame: (show: boolean) => void;
+  setMiniGameScore: (score: number) => void;
+  addMiniGameScore: (points: number) => void;
+  setGameSettings: (settings: { timeLimit: number; questionCount: number }) => void;
+  resetGame: () => void;
 }
 
 export const useGameStore = create<GameState>()(
@@ -99,7 +100,9 @@ export const useGameStore = create<GameState>()(
         questionCount: 15,
       },
 
+      // --------------------------------------------------
       // Actions
+      // --------------------------------------------------
       setGameCode: (code) => set({ gameCode: code }),
       setGameId: (id) => set({ gameId: id }),
       setQuizId: (id) => set({ quizId: id }),
@@ -126,7 +129,9 @@ export const useGameStore = create<GameState>()(
         })),
       updatePlayer: (playerId, updates) =>
         set((state) => ({
-          players: state.players.map((p) => (p.id === playerId ? { ...p, ...updates } : p)),
+          players: state.players.map((p) =>
+            p.id === playerId ? { ...p, ...updates } : p
+          ),
         })),
       setShowMiniGame: (show) => set({ showMiniGame: show }),
       setMiniGameScore: (score) => set({ miniGameScore: score }),
@@ -156,9 +161,14 @@ export const useGameStore = create<GameState>()(
             questionCount: 15,
           },
         }),
+
+      // --------------------------------------------------
+      // Baris baru: implementasi clearGame
+      // --------------------------------------------------
+      clearGame: () => get().resetGame(),
     }),
     {
       name: "quiz-game-store",
-    },
-  ),
-)
+    }
+  )
+);

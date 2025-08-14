@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { X } from "lucide-react" // Added X icon import for close button
 import { useGameStore } from "@/lib/store"
 import { supabase } from "@/lib/supabase"
 import { v4 as uuidv4 } from "uuid"
@@ -58,12 +59,18 @@ export function JoinGameDialog({ open, onOpenChange, initialGameCode = "" }: Joi
 
   useEffect(() => {
     if (initialGameCode) {
+      console.log("Setting initial game code in dialog:", initialGameCode) // Added debug logging
       form.setValue("gameCode", initialGameCode)
     }
   }, [initialGameCode, form])
 
+  const handleClose = () => {
+    onOpenChange(false)
+  }
+
   const onSubmit = async (data: JoinGameForm) => {
     setIsLoading(true)
+    console.log("Attempting to join game with code:", data.gameCode) // Added debug logging
     try {
       const { data: game, error: gameError } = await supabase
         .from("games")
@@ -73,10 +80,12 @@ export function JoinGameDialog({ open, onOpenChange, initialGameCode = "" }: Joi
         .single()
 
       if (gameError || !game) {
+        console.error("Game not found or error:", gameError) // Added debug logging
         form.setError("gameCode", { message: "Game not found or already started" })
         return
       }
 
+      console.log("Game found, creating player...") // Added debug logging
       const playerId = uuidv4()
       await supabase.from("players").insert({
         id: playerId,
@@ -93,10 +102,11 @@ export function JoinGameDialog({ open, onOpenChange, initialGameCode = "" }: Joi
       setQuizId(game.quiz_id)
       setIsHost(false)
 
+      console.log("Successfully joined game, redirecting to wait page") // Added debug logging
       router.push("/wait")
       onOpenChange(false)
-    } catch {
-      // ignore
+    } catch (error) {
+      console.error("Error joining game:", error) // Added debug logging
     } finally {
       setIsLoading(false)
     }
@@ -105,9 +115,17 @@ export function JoinGameDialog({ open, onOpenChange, initialGameCode = "" }: Joi
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md bg-white/95 backdrop-blur-lg border border-white/20">
+        <button
+          onClick={handleClose}
+          className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground z-10"
+        >
+          <X className="h-4 w-4" />
+          <span className="sr-only">Close</span>
+        </button>
+
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold text-center bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            Join Game
+            {initialGameCode ? "Join With QR" : "Join Game"}
           </DialogTitle>
         </DialogHeader>
 
@@ -140,9 +158,11 @@ export function JoinGameDialog({ open, onOpenChange, initialGameCode = "" }: Joi
                       onChange={(e) => field.onChange(e.target.value.toUpperCase())}
                       maxLength={6}
                       className="bg-white/80 border-gray-200 font-mono text-center text-lg tracking-widest"
+                      readOnly={!!initialGameCode}
                     />
                   </FormControl>
                   <FormMessage />
+                  {initialGameCode && <p className="text-sm text-green-600 mt-1">✓ Game code use QR</p>}
                 </FormItem>
               )}
             />

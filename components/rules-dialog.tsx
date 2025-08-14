@@ -2,11 +2,23 @@
 
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription, // 👈 tambahan
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Clock, Hash, Play, ArrowLeft } from "lucide-react"
 
 interface Quiz {
@@ -16,6 +28,11 @@ interface Quiz {
   questions: any[]
 }
 
+interface GameSettings {
+  timeLimit: number
+  questionCount: number
+}
+
 interface RulesDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -23,20 +40,12 @@ interface RulesDialogProps {
   onStartGame: (settings: GameSettings) => void
 }
 
-interface GameSettings {
-  timeLimit: number
-  questionCount: number
-}
-
 export function RulesDialog({ open, onOpenChange, quiz, onStartGame }: RulesDialogProps) {
-  const [timeLimit, setTimeLimit] = useState(300) // 5 minutes in seconds
+  const [timeLimit, setTimeLimit] = useState(600)
   const [questionCount, setQuestionCount] = useState(15)
 
   const handleStartGame = () => {
-    onStartGame({
-      timeLimit,
-      questionCount,
-    })
+    onStartGame({ timeLimit, questionCount })
   }
 
   const dialogVariants = {
@@ -54,18 +63,9 @@ export function RulesDialog({ open, onOpenChange, quiz, onStartGame }: RulesDial
 
   const getQuestionOptions = () => {
     const maxQuestions = quiz?.questions?.length || 0
-    const options = []
-
-    // Generate multiples of 5 up to the maximum available questions
-    for (let i = 5; i <= maxQuestions; i += 5) {
-      options.push(i)
-    }
-
-    // If maxQuestions is not a multiple of 5, add it as the final option
-    if (maxQuestions > 0 && maxQuestions % 5 !== 0) {
-      options.push(maxQuestions)
-    }
-
+    const options: number[] = []
+    for (let i = 5; i <= maxQuestions; i += 5) options.push(i)
+    if (maxQuestions > 0 && maxQuestions % 5 !== 0) options.push(maxQuestions)
     return options
   }
 
@@ -88,16 +88,27 @@ export function RulesDialog({ open, onOpenChange, quiz, onStartGame }: RulesDial
                   <Clock className="h-6 w-6 text-purple-600" />
                   Game Rules
                 </DialogTitle>
+                {/* 👇 tambahan untuk aksesibilitas */}
+                <DialogDescription id="rules-description" className="sr-only">
+                  Configure the game settings and start the quiz
+                </DialogDescription>
               </DialogHeader>
 
-              <motion.div initial="hidden" animate="visible" variants={cardVariants} transition={{ delay: 0.1 }}>
+              <motion.div
+                initial="hidden"
+                animate="visible"
+                variants={cardVariants}
+                transition={{ delay: 0.1 }}
+              >
                 <Card className="mb-6">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-lg text-gray-800">{quiz.title}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-sm text-gray-600 mb-4">{quiz.description}</p>
-                    <div className="text-sm text-gray-500">amount Questions: {quiz.questions?.length || 0}</div>
+                    <div className="text-sm text-gray-500">
+                      Amount of Questions: {quiz.questions?.length || 0}
+                    </div>
                   </CardContent>
                 </Card>
               </motion.div>
@@ -115,7 +126,10 @@ export function RulesDialog({ open, onOpenChange, quiz, onStartGame }: RulesDial
                     <Clock className="h-4 w-4" />
                     Time Limit
                   </Label>
-                  <Select value={String(timeLimit / 60)} onValueChange={(value) => setTimeLimit(Number(value) * 60)}>
+                  <Select
+                    value={String(timeLimit / 60)}
+                    onValueChange={(value) => setTimeLimit(Number(value) * 60)}
+                  >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select time limit" />
                     </SelectTrigger>
@@ -127,7 +141,6 @@ export function RulesDialog({ open, onOpenChange, quiz, onStartGame }: RulesDial
                       ))}
                     </SelectContent>
                   </Select>
-                
                 </div>
 
                 {/* Question Count Settings */}
@@ -136,7 +149,10 @@ export function RulesDialog({ open, onOpenChange, quiz, onStartGame }: RulesDial
                     <Hash className="h-4 w-4" />
                     Number of Questions
                   </Label>
-                  <Select value={String(questionCount)} onValueChange={(value) => setQuestionCount(Number(value))}>
+                  <Select
+                    value={String(questionCount)}
+                    onValueChange={(value) => setQuestionCount(Number(value))}
+                  >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select number of questions" />
                     </SelectTrigger>
