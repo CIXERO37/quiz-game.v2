@@ -14,8 +14,8 @@ let collisionSound: HTMLAudioElement | null = null
 
 const initSoundEffects = () => {
   if (typeof Audio !== "undefined") {
-    powerUpSound = new Audio("/audio/sound_untuk_dapat_poin.wav")
-    collisionSound = new Audio("/audio/sound_untuk_kurangi_poin.wav")
+    powerUpSound = new Audio("/audio/sound_untuk_kurangi_poin.wav")
+    collisionSound = new Audio("/audio/poin-minus.wav")
   }
 }
 
@@ -118,6 +118,10 @@ export default function SpaceDodge({ onComplete }: Props) {
       window.innerWidth <= 768,
   )
 
+  // Tambahkan di awal komponen
+  const coreCount = navigator.hardwareConcurrency || 4
+  const isLowEnd = coreCount <= 4 || window.innerWidth <= 480
+
   // Optimasi kecepatan untuk mobile
   const getSpeedMultiplier = useCallback(() => {
     if (timeLeft > 15) return isMobile.current ? 0.7 : 1
@@ -126,15 +130,15 @@ export default function SpaceDodge({ onComplete }: Props) {
 
   // Spawn rate yang dioptimasi
   const SPAWN_RATES = {
-    meteor: isMobile.current ? 800 : 600,
-    powerup: isMobile.current ? 2200 : 2000,
+    meteor: isLowEnd ? 1200 : isMobile.current ? 800 : 600,
+    powerup: isLowEnd ? 3000 : isMobile.current ? 2200 : 2000,
   }
 
   // Object limits untuk performa
   const LIMITS = {
-    meteors: isMobile.current ? 12 : 20,
-    powerups: isMobile.current ? 6 : 10,
-    particles: isMobile.current ? 15 : 25,
+    meteors: isLowEnd ? 8 : isMobile.current ? 12 : 20,
+    powerups: isLowEnd ? 3 : isMobile.current ? 6 : 10,
+    particles: isLowEnd ? 8 : isMobile.current ? 15 : 25,
   }
 
   // Particle system yang dioptimasi
@@ -165,8 +169,9 @@ export default function SpaceDodge({ onComplete }: Props) {
     (objX: number, objY: number) => {
       const shipLeft = shipX - 5
       const shipRight = shipX + 5
-      const shipTop = 82
-      const shipBottom = 90
+      // Ubah posisi hitbox sesuai posisi roket yang lebih ke atas
+      const shipTop = 70   // sebelumnya 82
+      const shipBottom = 79 // sebelumnya 90
 
       return objX >= shipLeft && objX <= shipRight && objY >= shipTop && objY <= shipBottom
     },
@@ -401,7 +406,10 @@ export default function SpaceDodge({ onComplete }: Props) {
         <div className="flex items-center gap-2">
           <span className="font-bold text-white">⏱ {timeLeft}s</span>
           <div className="w-32 h-2 bg-white/20 rounded-full overflow-hidden">
-            <div className="h-full bg-yellow-300 transition-all" style={{ width: `${(timeLeft / 30) * 100}%` }} />
+            <div
+              className="h-full bg-yellow-300 transition-all"
+              style={{ width: `${((30 - timeLeft) / 30) * 100}%` }} // bar bertambah dari kiri ke kanan
+            />
           </div>
         </div>
         <span className="font-bold text-yellow-300">⭐ {Math.floor(score)}</span>
@@ -409,8 +417,8 @@ export default function SpaceDodge({ onComplete }: Props) {
 
       {/* Ship */}
       <motion.div
-        className="absolute bottom-8 w-12 h-12 flex items-center justify-center no-flicker"
-        style={{ left: `${shipX}%`, x: "-50%" }}
+        className="absolute w-12 h-12 flex items-center justify-center no-flicker" // sebelumnya bottom-8
+        style={{ left: `${shipX}%`, x: "-50%", bottom: "21.5%" }}
         animate={{ scale: [1, 1.05, 1], rotate: [0, 5, -5, 0] }}
         transition={{ repeat: Number.POSITIVE_INFINITY, duration: 1.5 }}
       >
