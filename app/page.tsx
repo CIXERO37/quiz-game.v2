@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
-import { Play, Users, Gamepad2 } from "lucide-react"
+import { Play, Users, Gamepad2, Sparkles, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { QuizSelectionDialog } from "@/components/quiz-selection-dialog"
 import { JoinGameDialog } from "@/components/join-game-dialog"
@@ -146,31 +146,42 @@ export default function HomePage() {
             className="mb-4 sm:mb-6"
           >
             <div
-              className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 mx-auto bg-white/20 backdrop-blur-lg rounded-2xl flex items-center justify-center mb-4 border-4 border-white/30"
+              className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 mx-auto bg-gradient-to-br from-purple-500/30 to-cyan-500/30 backdrop-blur-xl rounded-2xl flex items-center justify-center mb-4 border-2 border-white/40 shadow-lg shadow-purple-500/20 relative overflow-hidden"
               style={{ imageRendering: "pixelated" }}
             >
-              <Gamepad2 className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 text-white" />
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-400/10 to-cyan-400/10 animate-pulse"></div>
+              <Gamepad2 className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 text-white relative z-10" />
+              <Sparkles className="absolute top-1 right-1 w-3 h-3 text-cyan-300 animate-pulse" />
+              <Star
+                className="absolute bottom-1 left-1 w-2 h-2 text-purple-300 animate-pulse"
+                style={{ animationDelay: "1s" }}
+              />
             </div>
           </motion.div>
 
           <h1
-            className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-3 sm:mb-4"
+            className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-transparent bg-gradient-to-r from-cyan-300 via-purple-300 to-pink-300 bg-clip-text mb-3 sm:mb-4 relative"
             style={{
-              textShadow: "2px 2px 0px #000, 4px 4px 0px #333",
+              textShadow: "0 0 20px rgba(147, 197, 253, 0.5), 0 0 40px rgba(168, 85, 247, 0.3)",
               fontFamily: "monospace",
               imageRendering: "pixelated",
             }}
           >
-            QUIZ-GAME
+            QUIZ GAME
+            <div className="absolute -top-2 -right-2 w-4 h-4 bg-yellow-300 rounded-full animate-ping opacity-75"></div>
+            <div
+              className="absolute -top-1 -left-3 w-2 h-2 bg-cyan-300 rounded-full animate-pulse"
+              style={{ animationDelay: "1s" }}
+            ></div>
           </h1>
           <p
-            className="text-base sm:text-lg md:text-xl text-white max-w-2xl mx-auto px-4"
+            className="text-base sm:text-lg md:text-xl text-cyan-100 max-w-2xl mx-auto px-4"
             style={{
-              textShadow: "1px 1px 0px #000",
+              textShadow: "0 0 10px rgba(34, 211, 238, 0.3)",
               fontFamily: "monospace",
             }}
           >
-            Challenge your friends with interactive quizzes and exciting mini-game!
+            Play a quiz game and with your friends!
           </p>
         </motion.div>
 
@@ -183,36 +194,40 @@ export default function HomePage() {
           <motion.div whileHover={{ scale: 1.05, y: -10 }} whileTap={{ scale: 0.95 }} className="group">
             <Button
               onClick={() => setShowQuizSelection(true)}
-              className="w-full h-32 sm:h-36 md:h-40 bg-[#FF6B6B] border-4 border-[#FF5252] hover:bg-[#FF5252] transition-all duration-300 flex flex-col items-center justify-center space-y-2 sm:space-y-3 md:space-y-4 text-white font-mono shadow-lg"
+              className="w-full h-32 sm:h-36 md:h-40 bg-gradient-to-br from-red-500 to-pink-600 border-2 border-red-400/50 hover:from-red-400 hover:to-pink-500 hover:shadow-xl hover:shadow-red-500/40 transition-all duration-300 flex flex-col items-center justify-center space-y-2 sm:space-y-3 md:space-y-4 text-white font-mono shadow-lg shadow-red-500/30 relative overflow-hidden"
               style={{ imageRendering: "pixelated" }}
             >
+              <div className="absolute inset-0 bg-gradient-to-br from-red-400/20 to-pink-400/20 animate-pulse"></div>
               <div
-                className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-[#FFD93D] border-2 border-[#FFC107] rounded-md flex items-center justify-center group-hover:rotate-12 transition-transform duration-300"
+                className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-gradient-to-br from-yellow-400 to-orange-500 border-2 border-yellow-300/60 rounded-md flex items-center justify-center group-hover:rotate-12 group-hover:scale-110 transition-transform duration-300 shadow-lg shadow-yellow-400/40 relative z-10"
                 style={{ imageRendering: "pixelated" }}
               >
-                <Play className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-[#FF6B6B]" />
+                <Play className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-red-600" />
               </div>
-              <div className="text-center">
-                <h2 className="text-xl sm:text-xl md:text-2xl font-bold mb-1">HOST</h2>
+              <div className="text-center relative z-10">
+                <h2 className="text-xl sm:text-xl md:text-2xl font-bold mb-1">HOST </h2>
               </div>
+              <div className="absolute top-2 right-2 w-2 h-2 bg-yellow-300 rounded-full animate-ping"></div>
             </Button>
           </motion.div>
 
           <motion.div whileHover={{ scale: 1.05, y: -10 }} whileTap={{ scale: 0.95 }} className="group">
             <Button
               onClick={() => setShowJoinGame(true)}
-              className="w-full h-32 sm:h-36 md:h-40 bg-[#4ECDC4] border-4 border-[#26A69A] hover:bg-[#26A69A] transition-all duration-300 flex flex-col items-center justify-center space-y-2 sm:space-y-3 md:space-y-4 text-white font-mono shadow-lg"
+              className="w-full h-32 sm:h-36 md:h-40 bg-gradient-to-br from-cyan-500 to-blue-600 border-2 border-cyan-400/50 hover:from-cyan-400 hover:to-blue-500 hover:shadow-xl hover:shadow-cyan-500/40 transition-all duration-300 flex flex-col items-center justify-center space-y-2 sm:space-y-3 md:space-y-4 text-white font-mono shadow-lg shadow-cyan-500/30 relative overflow-hidden"
               style={{ imageRendering: "pixelated" }}
             >
+              <div className="absolute inset-0 bg-gradient-to-br from-cyan-400/20 to-blue-400/20 animate-pulse"></div>
               <div
-                className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-[#FFD93D] border-2 border-[#FFC107] rounded-md flex items-center justify-center group-hover:rotate-12 transition-transform duration-300"
+                className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-gradient-to-br from-yellow-400 to-orange-500 border-2 border-yellow-300/60 rounded-md flex items-center justify-center group-hover:rotate-12 group-hover:scale-110 transition-transform duration-300 shadow-lg shadow-yellow-400/40 relative z-10"
                 style={{ imageRendering: "pixelated" }}
               >
-                <Users className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-[#4ECDC4]" />
+                <Users className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-cyan-600" />
               </div>
-              <div className="text-center">
+              <div className="text-center relative z-10">
                 <h2 className="text-xl sm:text-xl md:text-2xl font-bold mb-1">JOIN</h2>
               </div>
+              <div className="absolute top-2 right-2 w-2 h-2 bg-yellow-300 rounded-full animate-ping"></div>
             </Button>
           </motion.div>
         </motion.div>

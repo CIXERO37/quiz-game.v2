@@ -11,6 +11,7 @@ import { supabase } from "@/lib/supabase"
 import { Input } from "@/components/ui/input"
 import { Search, Play, ChevronDown, ChevronUp } from "lucide-react"
 import { RulesDialog } from "@/components/rules-dialog"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 interface Quiz {
   id: number
@@ -197,105 +198,114 @@ export function QuizSelectionDialog({ open, onOpenChange }: QuizSelectionDialogP
           {open && (
             <motion.div initial="hidden" animate="visible" exit="exit" variants={dialogVariants}>
               <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto bg-white/95 backdrop-blur-lg border border-white/20">
-                <DialogHeader className="flex items-center justify-between flex-row">
-                  <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent pt-4">
-                    Select a Quiz
-                  </DialogTitle>
-                  <div className="relative w-full max-w-xs p-4">
-                    <Search className="absolute left-6 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 " />
-                    <Input
-                      type="text"
-                      placeholder="Search quizzes..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-9 pr-4 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    />
-                  </div>
-                </DialogHeader>
+                <TooltipProvider>
+                  <DialogHeader className="flex items-center justify-between flex-row">
+                    <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent pt-4">
+                      Select a Quiz
+                    </DialogTitle>
+                    <div className="relative w-full max-w-xs p-4">
+                      <Search className="absolute left-6 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 " />
+                      <Input
+                        type="text"
+                        placeholder="Search quizzes..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-9 pr-4 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      />
+                    </div>
+                  </DialogHeader>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
-                  {filteredQuizzes.map((quiz, index) => (
-                    <motion.div
-                      key={quiz.id}
-                      initial="hidden"
-                      animate="visible"
-                      whileHover="hover"
-                      whileTap="tap"
-                      variants={cardVariants}
-                      transition={{ delay: index * 0.05 }}
-                    >
-                      <Card className="cursor-pointer transition-all duration-300 hover:shadow-purple-100 relative">
-                        <CardHeader className="pb-3">
-                          <div className="flex items-center justify-between">
-                            <CardTitle className="text-lg">{quiz.title}</CardTitle>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
+                    {filteredQuizzes.map((quiz, index) => (
+                      <motion.div
+                        key={quiz.id}
+                        initial="hidden"
+                        animate="visible"
+                        whileHover="hover"
+                        whileTap="tap"
+                        variants={cardVariants}
+                        transition={{ delay: index * 0.05 }}
+                      >
+                        <Card className="cursor-pointer transition-all duration-300 hover:shadow-purple-100 relative">
+                          <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <CardTitle
+                                      className={`text-lg hover:text-purple-600 transition-colors duration-200 ${expandedQuizId === quiz.id ? "" : "truncate"}`}
+                                    >
+                                      {quiz.title}
+                                    </CardTitle>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="bg-purple-600 text-white border-none shadow-lg rounded-md p-2 max-w-xs">
+                                    <p>{quiz.title}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                                <span className="bg-gradient-to-r from-purple-500 to-blue-500 text-white px-2 py-1 mx-1 rounded-full text-xs flex-shrink-0">
+                                  TK Level
+                                </span>
+                              </div>
 
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setExpandedQuizId(
-                                  expandedQuizId === quiz.id ? null : quiz.id
-                                )
-                              }}
-                              className="text-gray-500 hover:text-purple-600 transition-colors"
-                            >
-                              {expandedQuizId === quiz.id ? (
-                                <ChevronUp className="h-5 w-5" />
-                              ) : (
-                                <ChevronDown className="h-5 w-5" />
-                              )}
-                            </button>
-                          </div>
-
-                          <AnimatePresence>
-                            {expandedQuizId === quiz.id && (
-                              <motion.div
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: "auto", opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                transition={{ duration: 0.2 }}
-                                className="overflow-hidden"
-                              >
-                                <CardDescription className="text-sm mt-2">
-                                  {quiz.description}
-                                </CardDescription>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </CardHeader>
-                        <CardContent className="pb-4">
-                          <div className="flex items-center justify-between text-sm text-gray-600 mb-4">
-                            <span>{quiz.questions?.length || 0} Questions</span>
-                            <span className="bg-gradient-to-r from-purple-500 to-blue-500 text-white px-2 py-1 rounded-full text-xs">
-                              TK Level
-                            </span>
-                          </div>
-                          <div className="flex justify-end">
-                            <motion.div whileHover="hover" whileTap="tap" variants={buttonVariants}>
-                              <Button
+                              <button
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  handleStartGame(quiz)
+                                  setExpandedQuizId(expandedQuizId === quiz.id ? null : quiz.id)
                                 }}
-                                disabled={isLoading === quiz.id}
-                                size="sm"
-                                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-lg shadow-md disabled:opacity-50 flex items-center gap-1"
+                                className="text-gray-500 hover:text-purple-600 transition-colors"
                               >
-                                {isLoading === quiz.id ? (
-                                  "Starting..."
+                                {expandedQuizId === quiz.id ? (
+                                  <ChevronUp className="h-5 w-5" />
                                 ) : (
-                                  <>
-                                    <Play className="h-3 w-3" />
-                                    Start
-                                  </>
+                                  <ChevronDown className="h-5 w-5" />
                                 )}
-                              </Button>
-                            </motion.div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  ))}
-                </div>
+                              </button>
+                            </div>
+
+                            <AnimatePresence>
+                              {expandedQuizId === quiz.id && (
+                                <motion.div
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: "auto", opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  transition={{ duration: 0.2 }}
+                                  className="overflow-hidden"
+                                >
+                                  <CardDescription className="text-sm mt-2">{quiz.description}</CardDescription>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </CardHeader>
+                          <CardContent className="pb-4">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-gray-600">{quiz.questions?.length || 0} Questions</span>
+                              <motion.div whileHover="hover" whileTap="tap" variants={buttonVariants}>
+                                <Button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleStartGame(quiz)
+                                  }}
+                                  disabled={isLoading === quiz.id}
+                                  size="sm"
+                                  className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-lg shadow-md disabled:opacity-50 flex items-center gap-1"
+                                >
+                                  {isLoading === quiz.id ? (
+                                    "Starting..."
+                                  ) : (
+                                    <>
+                                      <Play className="h-3 w-3" />
+                                      Start
+                                    </>
+                                  )}
+                                </Button>
+                              </motion.div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    ))}
+                  </div>
+                </TooltipProvider>
               </DialogContent>
             </motion.div>
           )}
