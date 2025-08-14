@@ -1,53 +1,92 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
-import { useRouter } from 'next/navigation'
-import { Clock } from 'lucide-react'
-import { useGameStore } from '@/lib/store'
-import { supabase } from '@/lib/supabase'
+import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
+import { Clock } from "lucide-react";
+import { useGameStore } from "@/lib/store";
+import { supabase } from "@/lib/supabase";
+import { getPresenceChannel } from "@/lib/presence";
 
 export default function WaitPage() {
-  const router = useRouter()
-  const { gameId, playerName, playerAvatar } = useGameStore()
-  const [dots, setDots] = useState('')
-  const [isWaiting, setIsWaiting] = useState(true)
+  const router = useRouter();
+  const { gameId, playerName, playerAvatar, clearGame } = useGameStore();
+  const [dots, setDots] = useState("");
 
   useEffect(() => {
     if (!gameId || !playerName) {
-      router.replace('/')
-      return
+      router.replace("/");
+      return;
     }
 
-    // Animasi titik loading
     const dotInterval = setInterval(() => {
-      setDots(prev => (prev.length >= 3 ? '' : prev + '.'))
-    }, 500)
+      setDots((prev) => (prev.length >= 3 ? "" : prev + "."));
+    }, 500);
 
-    // ✅ Polling untuk mengecek apakah quiz sudah dimulai
     const pollingInterval = setInterval(async () => {
       try {
         const { data, error } = await supabase
-          .from('games')
-          .select('is_started') // ✅ Tambahan: cek status
-          .eq('id', gameId)
-          .single()
-
+          .from("games")
+          .select("is_started")
+          .eq("id", gameId)
+          .single();
         if (data?.is_started && !error) {
-          // ✅ Baru redirect kalau host sudah mulai
-          router.replace('/play')
-          clearInterval(pollingInterval)
+          router.replace("/play");
         }
       } catch (error) {
-        console.error('Polling error:', error)
+        console.error("Polling error:", error);
       }
-    }, 1000)
+    }, 1000);
+
+    const channel = getPresenceChannel();
+    channel
+      .on("presence", { event: "sync" }, () => {})
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await channel.track({
+            game_id: gameId,
+            name: playerName,
+            avatar: playerAvatar,
+          });
+        }
+      });
 
     return () => {
-      clearInterval(dotInterval)
-      clearInterval(pollingInterval)
+      clearInterval(dotInterval);
+      clearInterval(pollingInterval);
+      supabase.removeChannel(channel);
+    };
+  }, [gameId, playerName, playerAvatar, router]);
+
+  const handleExit = async () => {
+    const channel = getPresenceChannel();
+
+    // 1. Broadcast leave via presence
+    await channel.untrack();
+
+    // 2. HARD-DELETE the player row in Supabase
+    if (gameId && playerName) {
+      const { error } = await supabase
+        .from("players")
+        .delete()
+        .eq("game_id", gameId)
+        .eq("name", playerName);
+      if (error) console.error("delete player error:", error);
+
+      // 3. Tunggu 1 detik agar host sempat menerima event DELETE
+      await new Promise((r) => setTimeout(r, 1000));
     }
-  }, [gameId, playerName, router])
+
+    // 4. Clear local state
+    clearGame?.() ||
+      useGameStore.setState({
+        gameId: undefined,
+        playerName: "",
+        playerAvatar: "",
+      });
+
+    router.replace("/");
+  };
 
   if (!playerName || !playerAvatar) {
     return (
@@ -55,42 +94,73 @@ export default function WaitPage() {
         <div className="bg-black/70 border-4 border-white p-6 rounded-lg text-center">
           <p className="mb-4">Session not found!</p>
           <button
-            onClick={() => router.replace('/')}
+            onClick={() => router.replace("/")}
             className="bg-red-500 border-2 border-red-700 px-4 py-2 text-sm hover:bg-red-600"
           >
             Back
           </button>
         </div>
       </div>
-    )
+    );
   }
 
   return (
     <>
-      {/* Pixel Art Background */}
+      {/* Background Pixel */}
       <div className="fixed inset-0 z-0 overflow-hidden">
-        <div className="absolute inset-0 bg-[#87CEEB]" style={{ imageRendering: 'pixelated' }}></div>
+        <div
+          className="absolute inset-0 bg-[#87CEEB]"
+          style={{ imageRendering: "pixelated" }}
+        />
+        <div
+          className="absolute top-10 left-10 w-20 h-10 bg-white"
+          style={{ imageRendering: "pixelated" }}
+        />
+        <div
+          className="absolute top-12 left-24 w-10 h-10 bg-white"
+          style={{ imageRendering: "pixelated" }}
+        />
+        <div
+          className="absolute top-20 right-20 w-24 h-12 bg-white"
+          style={{ imageRendering: "pixelated" }}
+        />
+        <div
+          className="absolute top-22 right-32 w-12 h-12 bg-white"
+          style={{ imageRendering: "pixelated" }}
+        />
 
-        {/* Clouds */}
-        <div className="absolute top-10 left-10 w-20 h-10 bg-white" style={{ imageRendering: 'pixelated' }}></div>
-        <div className="absolute top-12 left-24 w-10 h-10 bg-white" style={{ imageRendering: 'pixelated' }}></div>
-        <div className="absolute top-20 right-20 w-24 h-12 bg-white" style={{ imageRendering: 'pixelated' }}></div>
-        <div className="absolute top-22 right-32 w-12 h-12 bg-white" style={{ imageRendering: 'pixelated' }}></div>
-
-        {/* Ground */}
-        <div className="absolute bottom-0 w-full h-1/3 bg-[#8B4513]" style={{ imageRendering: 'pixelated' }}>
-          <div className="absolute top-0 w-full h-6 bg-[#228B22]" style={{ imageRendering: 'pixelated' }}></div>
+        <div
+          className="absolute bottom-0 w-full h-1/3 bg-[#8B4513]"
+          style={{ imageRendering: "pixelated" }}
+        >
+          <div
+            className="absolute top-0 w-full h-6 bg-[#228B22]"
+            style={{ imageRendering: "pixelated" }}
+          />
           <div className="absolute bottom-8 left-1/4">
-            <div className="w-4 h-20 bg-[#8B4513] mx-auto" style={{ imageRendering: 'pixelated' }}></div>
-            <div className="w-16 h-16 bg-[#006400] -mt-8 mx-auto" style={{ imageRendering: 'pixelated' }}></div>
+            <div
+              className="w-4 h-20 bg-[#8B4513] mx-auto"
+              style={{ imageRendering: "pixelated" }}
+            />
+            <div
+              className="w-16 h-16 bg-[#006400] -mt-8 mx-auto"
+              style={{ imageRendering: "pixelated" }}
+            />
           </div>
           <div className="absolute bottom-8 right-1/4">
-            <div className="w-4 h-24 bg-[#8B4513] mx-auto" style={{ imageRendering: 'pixelated' }}></div>
-            <div className="w-20 h-20 bg-[#006400] -mt-10 mx-auto" style={{ imageRendering: 'pixelated' }}></div>
+            <div
+              className="w-4 h-24 bg-[#8B4513] mx-auto"
+              style={{ imageRendering: "pixelated" }}
+            />
+            <div
+              className="w-20 h-20 bg-[#006400] -mt-10 mx-auto"
+              style={{ imageRendering: "pixelated" }}
+            />
           </div>
         </div>
       </div>
 
+      {/* Konten */}
       <div className="relative z-10 flex items-center justify-center min-h-screen font-mono text-white">
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
@@ -105,7 +175,7 @@ export default function WaitPage() {
             className="w-32 h-32 rounded-full object-cover mx-auto mb-4 border-2 border-white"
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            transition={{ delay: 0.2, type: 'spring' }}
+            transition={{ delay: 0.2, type: "spring" }}
           />
 
           <p className="text-lg mb-2 drop-shadow-[1px_1px_0px_#000]">{playerName}</p>
@@ -118,15 +188,24 @@ export default function WaitPage() {
 
           <motion.div
             animate={{ scale: [1, 1.1, 1] }}
-            transition={{ duration: 2, repeat: Infinity }}
+            transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
             className="flex justify-center space-x-2"
           >
             <div className="w-3 h-3 bg-blue-400 rounded-full animate-bounce"></div>
             <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce animation-delay-200"></div>
             <div className="w-3 h-3 bg-pink-400 rounded-full animate-bounce animation-delay-400"></div>
           </motion.div>
+
+          <motion.button
+            onClick={handleExit}
+            className="bg-red-500 hover:bg-red-600 border-2 border-red-700 px-4 py-2 rounded-lg text-white font-bold mt-4 transition-colors shadow-[4px_4px_0px_#000] text-sm"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            Exit Room
+          </motion.button>
         </motion.div>
       </div>
     </>
-  )
+  );
 }

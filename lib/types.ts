@@ -1,10 +1,25 @@
-export interface Choice {
+export interface Player {
+  id: string
+  name: string
+  avatar?: string
+  game_id: string
+  score: number
+  correct_answers: number
+  created_at: string
+  joined_at?: string // When player joined
+}
+
+export interface Quiz {
   id: number
-  choice_text: string | null // Bisa null jika hanya ada gambar
-  is_correct: boolean
-  order_index: number
-  choice_image_url?: string | null // URL gambar pilihan jawaban
-  choice_image_alt?: string | null // Alt text untuk gambar pilihan jawaban
+  title: string
+  description: string
+  difficulty_level: string
+  created_at: string
+  questionCount: number
+  timeLimit: number
+  questions: Question[]
+  thumbnail?: string // For backward compatibility
+  updated_at?: string // For backward compatibility
 }
 
 export interface Question {
@@ -16,22 +31,24 @@ export interface Question {
   question_image_alt?: string | null // Alt text untuk gambar pertanyaan
   choices: Choice[]
   options?: string[] // For backward compatibility
+  correctAnswer?: number // For backward compatibility
   correct_answer?: number // For backward compatibility
   time_limit?: number // For backward compatibility
   points?: number // For backward compatibility
 }
 
-export interface Quiz {
-  questionCount: number
-  timeLimit: number
+export interface Choice {
   id: number
-  title: string
-  description: string
-  difficulty_level: string
-  created_at: string
-  questions: Question[]
-  thumbnail?: string // For backward compatibility
-  updated_at?: string // For backward compatibility
+  choice_text: string | null // Bisa null jika hanya ada gambar
+  is_correct: boolean
+  order_index: number
+  choice_image_url?: string | null // URL gambar pilihan jawaban
+  choice_image_alt?: string | null // Alt text untuk gambar pilihan jawaban
+}
+
+export interface GameSettings {
+  timeLimit: number
+  questionCount: number
 }
 
 export interface Game {
@@ -45,17 +62,7 @@ export interface Game {
   host_id?: string // Host identifier
   time_limit?: number // Time limit setting
   question_count?: number // Number of questions setting
-}
-
-export interface Player {
-  id: string
-  game_id: string
-  name: string
-  score: number
-  correct_answers: number
-  created_at: string
-  avatar?: string // Player avatar
-  joined_at?: string // When player joined
+  quiz_start_time?: string
 }
 
 export interface PlayerAnswer {
@@ -68,11 +75,6 @@ export interface PlayerAnswer {
   created_at: string
   selected_answer?: number // Selected answer index
   answered_at?: string // When answer was submitted
-}
-
-export interface GameSettings {
-  timeLimit: number
-  questionCount: number
 }
 
 export interface AVATAR_OPTION {

@@ -12,7 +12,7 @@ import { fetchQuizzes } from "@/lib/dummy-data"
 import { toast, Toaster } from "sonner"
 import Image from "next/image"
 import { Progress } from "@/components/ui/progress"
-import type { Quiz } from "@/lib/types"
+import type { Quiz, Player } from "@/lib/types"
 import { RulesDialog } from "@/components/rules-dialog"
 import { createGame } from "@/lib/game-utils"
 import type { GameSettings } from "@/lib/types"
@@ -62,15 +62,10 @@ interface PlayerProgress {
   isActive: boolean
 }
 
-interface GameRules {
-  timeLimit: number // total time in seconds
-  questionCount: number // number of questions to play
-}
-
 export default function HostPage() {
   const [isStarting, setIsStarting] = useState(false)
   const [playerProgress, setPlayerProgress] = useState<PlayerProgress[]>([])
-  const [quizStarted, setQuizStarted] = useState(false)
+  const [quizStarted, setQuizStarted] = useState(false) // ← default false
   const [showLeaderboard, setShowLeaderboard] = useState(false)
   const [copied, setCopied] = useState(false)
   const [showExitModal, setShowExitModal] = useState(false)
@@ -94,7 +89,11 @@ export default function HostPage() {
     setQuizId,
     setIsHost,
   } = useGameStore()
-  const joinUrl = typeof window !== "undefined" ? `${window.location.origin}?code=${gameCode}` : ""
+
+  const joinUrl =
+    typeof window !== "undefined"
+      ? `${window.location.protocol}//${window.location.host}?code=${gameCode}`
+      : `https://${process.env.NEXT_PUBLIC_VERCEL_URL || "localhost:3000"}?code=${gameCode}`
 
   useEffect(() => {
     if (!gameId || !gameCode) {
@@ -105,13 +104,11 @@ export default function HostPage() {
     const fetchGameData = async () => {
       try {
         const { data: gameData, error } = await supabase.from("games").select("*").eq("id", gameId).single()
-
         if (error) {
           console.error("Error fetching game:", error)
           setShowRulesDialog(true)
           return
         }
-
         if (gameData) {
           setGameSettings({
             timeLimit: gameData.time_limit,
@@ -158,14 +155,21 @@ export default function HostPage() {
   }, [quizId, router])
 
   const handleStartGame = async (settings: GameSettings) => {
+    if (
+      typeof settings.timeLimit !== "number" ||
+      typeof settings.questionCount !== "number" ||
+      settings.timeLimit <= 0 ||
+      settings.questionCount <= 0
+    ) {
+      toast.error("Invalid game settings")
+      return
+    }
+
     try {
       setLoading(true)
-
       const defaultQuizId = 1
       const hostId = "host-" + Date.now()
-
       const gameData = await createGame(defaultQuizId, hostId, settings)
-
       setGameId(gameData.gameId)
       setGameCode(gameData.gameCode)
       setQuizId(defaultQuizId)
@@ -174,7 +178,6 @@ export default function HostPage() {
         questionCount: gameData.questionCount,
       })
       setIsHost(true)
-
       setShowRulesDialog(false)
       toast.success("🎮 Game created successfully!")
     } catch (error) {
@@ -206,18 +209,16 @@ export default function HostPage() {
 
       const progressMap = new Map<string, PlayerProgress>()
 
-      playersData?.forEach((player) => {
+      playersData?.forEach((player: Player) => {
         const playerAnswers = answers.filter((a) => a.player_id === player.id)
-
         const score = playerAnswers.reduce((sum, a) => sum + (a.points_earned || 0), 0)
-
         const quizAnswers = playerAnswers.filter((a) => a.question_index >= 0)
         const currentQuestion = quizAnswers.length
 
         progressMap.set(player.id, {
           id: player.id,
           name: player.name,
-          avatar: player.avatar || "/placeholder.svg",
+          avatar: player.avatar || "/placeholder.svg?height=40&width=40&text=Player",
           score,
           currentQuestion,
           totalQuestions: quiz.questionCount,
@@ -231,8 +232,23 @@ export default function HostPage() {
       if (sudahAdaYangSelesai && !showLeaderboard) {
         supabase.from("games").update({ is_started: false, finished: true }).eq("id", gameId)
       }
+    } else {
+      const { data: playersData } = await supabase.from("players").select("*").eq("game_id", gameId)
+
+      if (playersData) {
+        const initialProgress = playersData.map((player: Player) => ({
+          id: player.id,
+          name: player.name,
+          avatar: player.avatar || "/placeholder.svg?height=40&width=40&text=Player",
+          score: 0,
+          currentQuestion: 0,
+          totalQuestions: quiz.questionCount,
+          isActive: true,
+        }))
+        setPlayerProgress(initialProgress)
+      }
     }
-  }, [gameId, quiz, showLeaderboard])
+  }, [gameId, quiz])
 
   useEffect(() => {
     if (!gameId) return
@@ -257,9 +273,17 @@ export default function HostPage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "players", filter: `game_id=eq.${gameId}` },
-        () => {
-          fetchPlayers()
-          updatePlayerProgress()
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            const updatedPlayers = players.filter((p) => p.id !== payload.old.id)
+            setPlayers(updatedPlayers)
+            toast.error(`👋 ${payload.old.name} left the game`)
+            return
+          }
+
+          if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
+            fetchPlayers()
+          }
         },
       )
       .subscribe()
@@ -270,27 +294,33 @@ export default function HostPage() {
         "postgres_changes",
         { event: "*", schema: "public", table: "player_answers", filter: `game_id=eq.${gameId}` },
         () => {
-          updatePlayerProgress()
+          if (quizStarted) {
+            setTimeout(() => updatePlayerProgress(), 1000)
+          }
         },
       )
       .subscribe()
 
     fetchPlayers()
-    updatePlayerProgress()
 
     return () => {
       supabase.removeChannel(gameSubscription)
       supabase.removeChannel(playersSubscription)
       supabase.removeChannel(answersSubscription)
     }
-  }, [gameId, fetchPlayers, updatePlayerProgress])
+  }, [gameId, fetchPlayers])
+
+  useEffect(() => {
+    if (quizStarted && gameId && quiz) {
+      updatePlayerProgress()
+    }
+  }, [quizStarted, gameId, quiz]) // Removed updatePlayerProgress from dependencies to prevent infinite loop
 
   useEffect(() => {
     if (!quizStarted || !gameSettings.timeLimit) return
 
     const initializeTimer = async () => {
       try {
-        // Get or set the quiz start time
         const { data: gameData } = await supabase
           .from("games")
           .select("quiz_start_time, time_limit")
@@ -298,19 +328,16 @@ export default function HostPage() {
           .single()
 
         if (!gameData?.quiz_start_time) {
-          // Record start time if not exists
           const startTime = new Date().toISOString()
           await supabase.from("games").update({ quiz_start_time: startTime }).eq("id", gameId)
           setQuizTimeLeft(gameSettings.timeLimit)
         } else {
-          // Calculate remaining time based on start time
           const startTime = new Date(gameData.quiz_start_time).getTime()
           const now = Date.now()
           const elapsed = Math.floor((now - startTime) / 1000)
           const remaining = Math.max(0, gameData.time_limit - elapsed)
           setQuizTimeLeft(remaining)
         }
-
         setIsTimerActive(true)
       } catch (error) {
         console.error("Error initializing timer:", error)
@@ -326,7 +353,7 @@ export default function HostPage() {
     if (!isTimerActive || quizTimeLeft <= 0) return
 
     const timer = setInterval(() => {
-      setQuizTimeLeft((prev) => {
+      setQuizTimeLeft((prev: number) => {
         if (prev <= 1) {
           setIsTimerActive(false)
           return 0
@@ -353,7 +380,7 @@ export default function HostPage() {
     setIsStarting(true)
     try {
       await supabase.from("games").update({ is_started: true }).eq("id", gameId)
-      setQuizStarted(true)
+      setQuizStarted(true) // ← ini memicu tampilan progress
       toast.success("🚀 Quiz started!")
     } catch {
       toast.error("❌ Failed to start quiz")
@@ -379,11 +406,36 @@ export default function HostPage() {
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
   }
 
+  const handleExitGame = async () => {
+    try {
+      if (gameId) {
+        await supabase.from("games").update({ is_started: false, finished: true }).eq("id", gameId)
+      }
+      router.push("/")
+    } catch (error) {
+      console.error("Error exiting game:", error)
+      router.push("/")
+    }
+  }
+
+  /* PodiumLeaderboard component */
   const PodiumLeaderboard = () => {
     const sortedPlayers = [...playerProgress].sort((a, b) => b.score - a.score)
-    const first = sortedPlayers[0] || { name: "No Player", score: 0, avatar: "/placeholder.svg" }
-    const second = sortedPlayers[1] || { name: "No Player", score: 0, avatar: "/placeholder.svg" }
-    const third = sortedPlayers[2] || { name: "No Player", score: 0, avatar: "/placeholder.svg" }
+    const first = sortedPlayers[0] || {
+      name: "No Player",
+      score: 0,
+      avatar: "/placeholder.svg?height=160&width=160&text=1st",
+    }
+    const second = sortedPlayers[1] || {
+      name: "No Player",
+      score: 0,
+      avatar: "/placeholder.svg?height=128&width=128&text=2nd",
+    }
+    const third = sortedPlayers[2] || {
+      name: "No Player",
+      score: 0,
+      avatar: "/placeholder.svg?height=112&width=112&text=3rd",
+    }
     const remainingPlayers = sortedPlayers.slice(3)
 
     return (
@@ -393,12 +445,7 @@ export default function HostPage() {
         className="min-h-screen flex items-center justify-center p-4"
       >
         <div className="relative w-full max-w-5xl">
-          <motion.h1
-            className="text-5xl md:text-6xl font-bold text-center mb-12 text-yellow-300 drop-shadow-[4px_4px_0px_#000]"
-            initial={{ scale: 0.5, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: "spring", duration: 0.8 }}
-          >
+          <motion.h1 className="text-5xl md:text-6xl font-bold text-center mb-12 text-yellow-300 drop-shadow-[4px_4px_0px_#000]">
             🏆 CHAMPIONS 🏆
           </motion.h1>
 
@@ -416,7 +463,7 @@ export default function HostPage() {
               >
                 <div className="w-24 h-24 md:w-32 md:h-32 bg-gradient-to-b from-gray-300 to-gray-500 rounded-full border-4 border-gray-400 shadow-lg">
                   <Image
-                    src={second.avatar || "/placeholder.svg"}
+                    src={second.avatar || "/placeholder.svg?height=128&width=128&text=Player"}
                     alt={second.name}
                     width={128}
                     height={128}
@@ -449,7 +496,7 @@ export default function HostPage() {
               >
                 <div className="w-32 h-32 md:w-40 md:h-40 bg-gradient-to-b from-yellow-200 to-yellow-600 rounded-full border-4 border-yellow-400 shadow-2xl">
                   <Image
-                    src={first.avatar || "/placeholder.svg"}
+                    src={first.avatar || "/placeholder.svg?height=160&width=160&text=Player"}
                     alt={first.name}
                     width={160}
                     height={160}
@@ -482,7 +529,7 @@ export default function HostPage() {
               >
                 <div className="w-24 h-24 md:w-28 md:h-28 bg-gradient-to-b from-orange-300 to-orange-700 rounded-full border-4 border-orange-500 shadow-lg">
                   <Image
-                    src={third.avatar || "/placeholder.svg"}
+                    src={third.avatar || "/placeholder.svg?height=112&width=112&text=Player"}
                     alt={third.name}
                     width={112}
                     height={112}
@@ -496,8 +543,8 @@ export default function HostPage() {
               </motion.div>
               <div className="bg-gradient-to-t from-orange-700 to-orange-300 w-32 md:w-40 h-20 md:h-24 rounded-t-lg border-4 border-orange-500 shadow-lg">
                 <div className="text-center pt-1 md:pt-2">
-                  <p className="font-bold text-sm md:text-lg text-orange-900 drop-shadow">{third.name}</p>
-                  <p className="text-sm md:text-xl font-bold text-orange-800">{third.score} points</p>
+                  <p className="font-bold text-white">{third.name}</p>
+                  <p className="text-sm text-white/70">{third.score} points</p>
                 </div>
               </div>
             </motion.div>
@@ -522,7 +569,7 @@ export default function HostPage() {
                   >
                     <span className="text-yellow-300 font-bold w-8">{index + 4}th</span>
                     <Image
-                      src={player.avatar || "/placeholder.svg"}
+                      src={player.avatar || "/placeholder.svg?height=40&width=40&text=Player"}
                       alt={player.name}
                       width={40}
                       height={40}
@@ -576,7 +623,13 @@ export default function HostPage() {
 
   return (
     <>
-      <RulesDialog open={showRulesDialog} onOpenChange={setShowRulesDialog} quiz={quiz} onStartGame={handleStartGame} />
+      <RulesDialog
+        open={showRulesDialog}
+        onOpenChange={setShowRulesDialog}
+        quiz={quiz}
+        onStartGame={handleStartGame}
+        aria-describedby="rules-description"
+      />
 
       <div className="fixed inset-0 z-0 overflow-hidden">
         <div className="absolute inset-0 bg-[#87CEEB]" style={{ imageRendering: "pixelated" }} />
@@ -590,6 +643,7 @@ export default function HostPage() {
         {showLeaderboard ? (
           <PodiumLeaderboard />
         ) : !quizStarted ? (
+          /* ---------- WAITING ROOM ---------- */
           <div className="grid lg:grid-cols-2 gap-8">
             <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}>
               <div className="bg-white/10 border-2 border-white/20 p-6 rounded-lg">
@@ -676,7 +730,7 @@ export default function HostPage() {
                         className="bg-white/10 rounded-lg p-4 flex items-center gap-3"
                       >
                         <Image
-                          src={player.avatar || "/placeholder.svg"}
+                          src={player.avatar || "/placeholder.svg?height=48&width=48&text=Player"}
                           alt={player.name}
                           width={48}
                           height={48}
@@ -695,6 +749,7 @@ export default function HostPage() {
             </motion.div>
           </div>
         ) : (
+          /* ---------- PLAYER PROGRESS (muncul setelah klik Start Quiz) ---------- */
           <div className="space-y-8">
             <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
               <div className="bg-white/10 border-2 border-white/20 p-6 rounded-lg flex items-center justify-between">
@@ -741,35 +796,42 @@ export default function HostPage() {
                 <UsersRound className="w-5 h-5" /> Players Progress
               </h2>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                {playerProgress.map((p) => (
-                  <motion.div
-                    key={p.id}
-                    layout
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className="flex flex-col gap-3 bg-white/5 rounded p-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Image
-                        src={p.avatar || "/placeholder.svg"}
-                        alt={p.name}
-                        width={40}
-                        height={40}
-                        className="rounded-full border-2 border-white/30 object-cover"
-                      />
-                      <div className="flex-1">
-                        <p className="font-bold">{p.name}</p>
-                        <p className="text-sm text-white/70">{p.score} pts</p>
+              {playerProgress.length === 0 ? (
+                <div className="text-center py-8 text-white/60">
+                  <UsersRound className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No players found. Make sure players have joined the game.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  {playerProgress.map((p) => (
+                    <motion.div
+                      key={p.id}
+                      layout
+                      initial={{ scale: 0.9, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      className="flex flex-col gap-3 bg-white/5 rounded p-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Image
+                          src={p.avatar || "/placeholder.svg?height=40&width=40&text=Player"}
+                          alt={p.name}
+                          width={40}
+                          height={40}
+                          className="rounded-full border-2 border-white/30 object-cover"
+                        />
+                        <div className="flex-1">
+                          <p className="font-bold">{p.name}</p>
+                          <p className="text-sm text-white/70">{p.score} pts</p>
+                        </div>
+                        <p className="text-sm text-white/70">
+                          Q {p.currentQuestion}/{p.totalQuestions}
+                        </p>
                       </div>
-                      <p className="text-sm text-white/70">
-                        Q {p.currentQuestion}/{p.totalQuestions}
-                      </p>
-                    </div>
-                    <Progress value={(p.currentQuestion / p.totalQuestions) * 100} className="w-full" />
-                  </motion.div>
-                ))}
-              </div>
+                      <Progress value={(p.currentQuestion / p.totalQuestions) * 100} className="w-full" />
+                    </motion.div>
+                  ))}
+                </div>
+              )}
             </motion.div>
           </div>
         )}
@@ -780,23 +842,36 @@ export default function HostPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[999] flex items-center justify-center bg-black/70 pointer-events-auto"
+              className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+              onClick={() => setShowExitModal(false)}
             >
               <motion.div
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.8, opacity: 0 }}
-                className="bg-[#1a1a2e] border-4 border-white font-mono text-white p-6 rounded-lg shadow-[8px_8px_0px_#000] max-w-sm w-full mx-4 pointer-events-auto"
+                initial={{ scale: 0.8, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.8, opacity: 0, y: 20 }}
+                transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                className="bg-[#1a1a2e] border-4 border-white font-mono text-white p-8 rounded-lg shadow-[8px_8px_0px_#000] max-w-md w-full mx-4"
+                onClick={(e) => e.stopPropagation()}
               >
-                <h2 className="text-lg mb-4 text-center">Are you sure?</h2>
-                <p className="text-sm mb-6 text-center">Progress will be lost if you exit.</p>
-                <div className="flex justify-center gap-4">
-                  <PixelButton color="gray" size="sm" onClick={() => setShowExitModal(false)}>
-                    Cancel
-                  </PixelButton>
-                  <PixelButton color="red" size="sm" onClick={() => router.push("/")}>
-                    Confirm Exit
-                  </PixelButton>
+                <div className="text-center">
+                  <div className="text-4xl mb-4">⚠️</div>
+                  <h2 className="text-xl mb-4 font-bold">Exit Game?</h2>
+                  <p className="text-sm mb-6 text-white/80 leading-relaxed">
+                    Are you sure you want to exit? All game progress will be lost and players will be disconnected.
+                  </p>
+                  <div className="flex justify-center gap-4">
+                    <PixelButton
+                      color="gray"
+                      size="md"
+                      onClick={() => setShowExitModal(false)}
+                      className="min-w-[100px]"
+                    >
+                      Cancel
+                    </PixelButton>
+                    <PixelButton color="red" size="md" onClick={handleExitGame} className="min-w-[100px]">
+                      Exit Game
+                    </PixelButton>
+                  </div>
                 </div>
               </motion.div>
             </motion.div>
