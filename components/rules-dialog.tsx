@@ -41,7 +41,7 @@ interface RulesDialogProps {
 }
 
 export function RulesDialog({ open, onOpenChange, quiz, onStartGame }: RulesDialogProps) {
-  const [timeLimit, setTimeLimit] = useState(600)
+  const [timeLimit, setTimeLimit] = useState(900)
   const [questionCount, setQuestionCount] = useState(15)
 
   const handleStartGame = () => {
@@ -106,9 +106,7 @@ export function RulesDialog({ open, onOpenChange, quiz, onStartGame }: RulesDial
                   </CardHeader>
                   <CardContent>
                     <p className="text-sm text-gray-600 mb-4">{quiz.description}</p>
-                    <div className="text-sm text-gray-500">
-                      Amount of Questions: {quiz.questions?.length || 0}
-                    </div>
+                  
                   </CardContent>
                 </Card>
               </motion.div>
@@ -164,9 +162,6 @@ export function RulesDialog({ open, onOpenChange, quiz, onStartGame }: RulesDial
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-gray-500">
-                    Choose questions in multiples of 5 (Maximum: {quiz.questions?.length || 0})
-                  </p>
                 </div>
 
                 {/* Action Buttons */}
