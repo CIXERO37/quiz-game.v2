@@ -147,6 +147,7 @@ export default function ResultContent() {
             Play Again
           </Button>
         </div>
+        {/* komen */}
       </motion.div>
     </div>
   )

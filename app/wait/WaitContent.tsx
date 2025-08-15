@@ -7,7 +7,7 @@ import { Clock } from "lucide-react";
 import { useGameStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { getPresenceChannel } from "@/lib/presence";
-
+// komen
 export default function WaitContent() {
   const searchParams = useSearchParams();
   const router = useRouter();

@@ -9,6 +9,7 @@ export default function ResultPage() {
           <p>Loading result...</p>
         </div>
       }
+      // komen
     >
       <ResultContent />
     </Suspense>

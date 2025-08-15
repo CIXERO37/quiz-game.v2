@@ -10,6 +10,7 @@ export default function HostPage() {
         </div>
       }
     >
+      {/* komen */}
       <HostContent />
     </Suspense>
   )

@@ -10,7 +10,8 @@ export default function WaitPage() {
         </div>
       }
     >
-      <WaitContent />
+      <WaitContent /> 
+      {/* komen */}
     </Suspense>
   )
 }
