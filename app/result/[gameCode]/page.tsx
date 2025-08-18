@@ -16,6 +16,7 @@ export default async function ResultPage({ params }: PageProps) {
           <p>Loading result...</p>
         </div>
       }
+      // ikan
     >
       <ResultContent gameCode={gameCode} />
     </Suspense>
