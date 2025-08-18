@@ -10,5 +10,6 @@ export default function HostPage({ params }: { params: Promise<{ gameCode: strin
     <Suspense fallback={<p>Loading host dashboard…</p>}>
       <HostContent gameCode={gameCode} />
     </Suspense>
+    // ikan
   );
 }
