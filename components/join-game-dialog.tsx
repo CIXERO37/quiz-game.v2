@@ -12,12 +12,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { X } from "lucide-react" // Added X icon import for close button
+import { X } from "lucide-react"
 import { useGameStore } from "@/lib/store"
 import { supabase } from "@/lib/supabase"
 import { v4 as uuidv4 } from "uuid"
 
-// 8 Binatang lucu dari DiceBear API
 const ANIMAL_AVATARS = [
   "https://api.dicebear.com/9.x/micah/svg?seed=cat",
   "https://api.dicebear.com/9.x/micah/svg?seed=dog",
@@ -39,7 +38,7 @@ type JoinGameForm = z.infer<typeof joinGameSchema>
 interface JoinGameDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  initialGameCode?: string // Added prop for pre-filling game code
+  initialGameCode?: string
 }
 
 export function JoinGameDialog({ open, onOpenChange, initialGameCode = "" }: JoinGameDialogProps) {
@@ -53,13 +52,12 @@ export function JoinGameDialog({ open, onOpenChange, initialGameCode = "" }: Joi
     resolver: zodResolver(joinGameSchema),
     defaultValues: {
       name: "",
-      gameCode: initialGameCode, // Use initial game code from props
+      gameCode: initialGameCode,
     },
   })
 
   useEffect(() => {
     if (initialGameCode) {
-      console.log("Setting initial game code in dialog:", initialGameCode) // Added debug logging
       form.setValue("gameCode", initialGameCode)
     }
   }, [initialGameCode, form])
@@ -70,7 +68,6 @@ export function JoinGameDialog({ open, onOpenChange, initialGameCode = "" }: Joi
 
   const onSubmit = async (data: JoinGameForm) => {
     setIsLoading(true)
-    console.log("Attempting to join game with code:", data.gameCode) // Added debug logging
     try {
       const { data: game, error: gameError } = await supabase
         .from("games")
@@ -80,12 +77,10 @@ export function JoinGameDialog({ open, onOpenChange, initialGameCode = "" }: Joi
         .single()
 
       if (gameError || !game) {
-        console.error("Game not found or error:", gameError) // Added debug logging
         form.setError("gameCode", { message: "Game not found or already started" })
         return
       }
 
-      console.log("Game found, creating player...") // Added debug logging
       const playerId = uuidv4()
       await supabase.from("players").insert({
         id: playerId,
@@ -102,11 +97,20 @@ export function JoinGameDialog({ open, onOpenChange, initialGameCode = "" }: Joi
       setQuizId(game.quiz_id)
       setIsHost(false)
 
-      console.log("Successfully joined game, redirecting to wait page") // Added debug logging
-      router.push(`/wait?gameId=${game.id}&playerId=${playerId}&playerName=${data.name}&playerAvatar=${selectedAvatar}`)
+      // ✅ Simpan ke localStorage sebelum redirect
+      localStorage.setItem(
+        "player",
+        JSON.stringify({
+          id: playerId,
+          name: data.name,
+          avatar: selectedAvatar,
+        })
+      )
+
+      router.push(`/wait/${data.gameCode.toUpperCase()}`)
       onOpenChange(false)
     } catch (error) {
-      console.error("Error joining game:", error) // Added debug logging
+      console.error("Error joining game:", error)
     } finally {
       setIsLoading(false)
     }

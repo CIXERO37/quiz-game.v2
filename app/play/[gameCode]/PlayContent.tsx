@@ -1,17 +1,18 @@
-"use client"
+"use client";
 
-import type React from "react"
-import { useState, useEffect, useMemo } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import { useSearchParams, useRouter } from "next/navigation"
-import { Clock } from "lucide-react"
-import { Progress } from "@/components/ui/progress"
-import SpaceDodge from "@/components/space-dodge"
-import { useGameStore } from "@/lib/store"
-import { supabase } from "@/lib/supabase"
-import { fetchQuizzes, DUMMY_QUIZZES } from "@/lib/dummy-data"
-import type { Quiz } from "@/lib/types"
-import Image from "next/image"
+import type React from "react";
+import { useState, useEffect, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
+import { Clock } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import SpaceDodge from "@/components/space-dodge";
+import { useGameStore } from "@/lib/store";
+import { supabase } from "@/lib/supabase";
+import { fetchQuizzes, DUMMY_QUIZZES } from "@/lib/dummy-data";
+import type { Quiz } from "@/lib/types";
+import Image from "next/image";
+import { toast } from "sonner";
 
 function PixelButton({
   children,
@@ -19,14 +20,14 @@ function PixelButton({
   className = "",
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  color?: "blue" | "green" | "red" | "yellow"
+  color?: "blue" | "green" | "red" | "yellow";
 }) {
   const colorStyles = {
     blue: "bg-blue-500 border-blue-700 text-white hover:bg-blue-600 active:bg-blue-700",
     green: "bg-green-500 border-green-700 text-white hover:bg-green-600 active:bg-green-700",
     red: "bg-red-500 border-red-700 text-white hover:bg-red-600 active:bg-red-700",
     yellow: "bg-yellow-400 border-yellow-600 text-black hover:bg-yellow-500 active:bg-yellow-600",
-  }
+  };
 
   return (
     <button
@@ -35,30 +36,15 @@ function PixelButton({
     >
       {children}
     </button>
-  )
+  );
 }
 
-export default function PlayContent() {
-  const searchParams = useSearchParams()
-  const router = useRouter()
-  const gameId = searchParams.get("gameId")
-  const playerId = searchParams.get("playerId")
-  const quizId = searchParams.get("quizId")
+interface PlayContentProps {
+  gameCode: string;
+}
 
-  const [timeLeft, setTimeLeft] = useState(0)
-  const [selectedChoiceId, setSelectedChoiceId] = useState<number | null>(null)
-  const [isAnswered, setIsAnswered] = useState(false)
-  const [showResult, setShowResult] = useState(false)
-  const [isCorrect, setIsCorrect] = useState(false)
-  const [isQuizStarted, setIsQuizStarted] = useState(false)
-  const [showCountdown, setShowCountdown] = useState(false)
-  const [countdownValue, setCountdownValue] = useState(10)
-  const [shouldNavigate, setShouldNavigate] = useState(false)
-  const [quiz, setQuiz] = useState<Quiz | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [showMiniGame, setShowMiniGame] = useState(false)
-  const [gameSettings, setGameSettings] = useState<{ timeLimit: number; questionCount: number } | null>(null)
-
+export default function PlayContent({ gameCode }: PlayContentProps) {
+  const router = useRouter();
   const {
     currentQuestion,
     score,
@@ -66,211 +52,230 @@ export default function PlayContent() {
     setCurrentQuestion,
     addScore,
     incrementCorrectAnswers,
-  } = useGameStore()
+  } = useGameStore();
+
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [selectedChoiceId, setSelectedChoiceId] = useState<number | null>(null);
+  const [isAnswered, setIsAnswered] = useState(false);
+  const [showResult, setShowResult] = useState(false);
+  const [isCorrect, setIsCorrect] = useState(false);
+  const [isQuizStarted, setIsQuizStarted] = useState(false);
+  // const [showCountdown, setShowCountdown] = useState(false); // Di-komentari untuk masa depan
+  // const [countdownValue, setCountdownValue] = useState(10); // Di-komentari untuk masa depan
+  const [shouldNavigate, setShouldNavigate] = useState(false);
+  const [quiz, setQuiz] = useState<Quiz | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showMiniGame, setShowMiniGame] = useState(false);
+  const [gameSettings, setGameSettings] = useState<{ timeLimit: number; questionCount: number } | null>(null);
 
   useEffect(() => {
-    if (!gameId || !playerId || !quizId) {
-      router.replace("/")
-    }
-  }, [gameId, playerId, quizId, router])
+    const fetchGame = async () => {
+      const { data: gameData, error: gameErr } = await supabase
+        .from("games")
+        .select("id, quiz_id, time_limit, question_count, is_started")
+        .eq("code", gameCode.toUpperCase())
+        .single();
 
-  useEffect(() => {
-    const loadQuizAndSettings = async () => {
-      if (!gameId || !quizId) {
-        router.replace("/")
-        return
+      if (gameErr || !gameData) {
+        router.replace("/");
+        return;
       }
 
-      try {
-        await fetchQuizzes()
-        const found = DUMMY_QUIZZES.find((q) => String(q.id) === quizId)
-        setQuiz(found || null)
+      setGameSettings({
+        timeLimit: gameData.time_limit,
+        questionCount: gameData.question_count,
+      });
+      setTimeLeft(gameData.time_limit);
 
-        const { data: gameData } = await supabase
-          .from("games")
-          .select("time_limit, question_count")
-          .eq("id", gameId)
-          .single()
+      const { data: quizData } = await supabase
+        .from("quizzes")
+        .select(`
+    *,
+    questions (
+      id,
+      question,
+      question_image_url,
+      question_image_alt,
+      choices (
+        id,
+        choice_text,
+        choice_image_url,
+        choice_image_alt,
+        is_correct
+      )
+    )
+  `)
+        .eq("id", gameData.quiz_id)
+        .single();
 
-        if (gameData) {
-          setGameSettings({
-            timeLimit: gameData.time_limit,
-            questionCount: gameData.question_count,
-          })
-          setTimeLeft(gameData.time_limit)
+      if (!quizData) {
+        toast.error("Quiz not found");
+        router.replace("/");
+        return;
+      }
+
+      setQuiz(quizData as Quiz);
+
+      if (gameData.is_started) {
+        // setShowCountdown(true); // Di-komentari untuk masa depan
+        setIsQuizStarted(true); // Langsung mulai quiz tanpa countdown
+      } else {
+        setIsQuizStarted(false);
+      }
+      setCurrentQuestion(0);
+      setLoading(false);
+    };
+
+    fetchGame();
+  }, [gameCode, router, setCurrentQuestion]);
+
+  useEffect(() => {
+    if (!gameCode) return;
+
+    const channel = supabase
+      .channel("game-start")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "games", filter: `code=eq.${gameCode.toUpperCase()}` },
+        (payload) => {
+          if (payload.new.is_started && !isQuizStarted) {
+            // setShowCountdown(true); // Di-komentari untuk masa depan
+            setIsQuizStarted(true); // Langsung mulai quiz tanpa countdown
+          }
         }
+      )
+      .subscribe();
 
-        setCurrentQuestion(0)
-        setLoading(false)
-      } catch (error) {
-        console.error("Error loading quiz and settings:", error)
-        setLoading(false)
-      }
-    }
-
-    loadQuizAndSettings()
-  }, [gameId, quizId, router, setCurrentQuestion])
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [gameCode, isQuizStarted]);
 
   useEffect(() => {
-    if (!gameId || loading) return
+    if (!gameCode) return;
 
     const channel = supabase
       .channel("game-finished")
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "games", filter: `id=eq.${gameId}` },
+        { event: "UPDATE", schema: "public", table: "games", filter: `code=eq.${gameCode.toUpperCase()}` },
         (payload) => {
           if (payload.new.finished) {
-            router.replace("/result")
+            router.replace(`/result/${gameCode}`);
           }
-        },
+        }
       )
-      .subscribe()
+      .subscribe();
 
     return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [gameId, loading, router])
+      supabase.removeChannel(channel);
+    };
+  }, [gameCode, router]);
 
+  /*
   useEffect(() => {
-    if (!gameId || isQuizStarted || showCountdown || loading) return
-
-    const checkStart = async () => {
-      const { data } = await supabase.from("games").select("is_started").eq("id", gameId).single()
-      if (data?.is_started && !isQuizStarted && !showCountdown) {
-        setShowCountdown(true)
-      }
-    }
-
-    const interval = setInterval(checkStart, 1000)
-    return () => clearInterval(interval)
-  }, [gameId, isQuizStarted, showCountdown, loading])
-
-  useEffect(() => {
-    if (!showCountdown) return
+    if (!showCountdown) return;
     const timer = setInterval(() => {
       setCountdownValue((prev) => {
         if (prev <= 1) {
-          clearInterval(timer)
-          setShowCountdown(false)
-          setIsQuizStarted(true)
-          return 0
+          clearInterval(timer);
+          setShowCountdown(false);
+          setIsQuizStarted(true);
+          return 0;
         }
-        return prev - 1
-      })
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [showCountdown])
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [showCountdown]);
+  */
 
   useEffect(() => {
-    if (!isQuizStarted || !quiz) return
+    if (!isQuizStarted || !gameSettings) return;
     const timer = setInterval(() => {
       setTimeLeft((t) => {
         if (t <= 1) {
-          clearInterval(timer)
-          setShouldNavigate(true)
-          return 0
+          clearInterval(timer);
+          setShouldNavigate(true);
+          return 0;
         }
-        return t - 1
-      })
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [isQuizStarted, quiz])
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isQuizStarted, gameSettings]);
 
   useEffect(() => {
-    if (shouldNavigate) router.replace("/result")
-  }, [shouldNavigate, router])
+    if (shouldNavigate) {
+      router.replace(`/result/${gameCode}`);
+    }
+  }, [shouldNavigate, gameCode, router]);
 
   const shuffledQuestions = useMemo(() => {
-    if (!quiz || !gameSettings) return []
+    if (!quiz || !gameSettings) return [];
     return [...quiz.questions]
       .sort(() => Math.random() - 0.5)
       .slice(0, gameSettings.questionCount)
-      .map((question) => ({
-        ...question,
-        choices: [...question.choices].sort(() => Math.random() - 0.5),
-      }))
-  }, [quiz, gameSettings])
+      .map((q) => ({
+        ...q,
+        choices: [...q.choices].sort(() => Math.random() - 0.5),
+      }));
+  }, [quiz, gameSettings]);
 
-  const question = shuffledQuestions[currentQuestion]
+  const question = shuffledQuestions[currentQuestion];
 
-  const getChoiceLabel = (index: number) => String.fromCharCode(65 + index)
+  const getChoiceLabel = (index: number) => String.fromCharCode(65 + index);
 
   const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
-  }
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
 
-  const handleAnswerSelect = async (choice: {
-    id: number
-    choice_text: string | null
-    is_correct: boolean
-  }) => {
-    if (isAnswered || !question) return
-    setSelectedChoiceId(choice.id)
-    setIsAnswered(true)
-    const correct = choice.is_correct
-    setIsCorrect(correct)
+  const handleAnswerSelect = async (choice: { id: number; choice_text: string | null; is_correct: boolean }) => {
+    if (isAnswered || !question) return;
 
-    await supabase.from("player_answers").insert({
-      player_id: playerId,
-      game_id: gameId,
-      question_index: currentQuestion,
-      is_correct: correct,
-      points_earned: correct ? 100 : 0,
-    })
+    setSelectedChoiceId(choice.id);
+    setIsAnswered(true);
+    const correct = choice.is_correct;
+    setIsCorrect(correct);
 
     if (correct) {
-      addScore(100)
-      incrementCorrectAnswers()
+      addScore(10);
+      incrementCorrectAnswers();
     }
 
-    setShowResult(true)
+    await supabase.from("player_answers").insert({
+      game_id: useGameStore.getState().gameId,
+      player_id: useGameStore.getState().playerId,
+      question_index: currentQuestion,
+      points_earned: correct ? 10 : 0,
+    });
 
+    setShowResult(true);
     setTimeout(() => {
+      setShowResult(false);
+      setIsAnswered(false);
+      setSelectedChoiceId(null);
       if (correct && (correctAnswers + 1) % 3 === 0) {
-        setShowMiniGame(true)
+        setShowMiniGame(true);
+      } else if (currentQuestion + 1 < gameSettings!.questionCount) {
+        setCurrentQuestion(currentQuestion + 1);
       } else {
-        nextQuestion()
+        setShouldNavigate(true);
       }
-    }, 2000)
-  }
+    }, 2000);
+  };
 
-  const nextQuestion = async () => {
-    if (!question || !quiz || !gameSettings) return
-
-    if (currentQuestion >= gameSettings.questionCount - 1) {
-      await supabase.from("games").update({ finished: true, is_started: false }).eq("id", gameId)
-      setShouldNavigate(true)
-      return
+  const handleMiniGameComplete = (score: number) => {
+    addScore(score);
+    setShowMiniGame(false);
+    if (currentQuestion + 1 < gameSettings!.questionCount) {
+      setCurrentQuestion(currentQuestion + 1);
+    } else {
+      setShouldNavigate(true);
     }
-
-    setCurrentQuestion(currentQuestion + 1)
-    setSelectedChoiceId(null)
-    setIsAnswered(false)
-    setShowResult(false)
-    setIsCorrect(false)
-  }
-
-  const handleMiniGameComplete = (miniScore: number) => {
-    addScore(miniScore)
-    setShowMiniGame(false)
-    nextQuestion()
-  }
-
-  const Background = () => (
-    <div className="fixed inset-0 z-0 overflow-hidden">
-      <div
-        className="absolute inset-0 bg-cover bg-center"
-        style={{
-          backgroundImage: 'url("/images/space_bg.jpg")',
-          imageRendering: "pixelated",
-        }}
-      />
-      <div className="absolute inset-0 bg-black/40" />
-    </div>
-  )
+  };
 
   if (loading || !gameSettings)
     return (
@@ -282,7 +287,7 @@ export default function PlayContent() {
           </div>
         </div>
       </>
-    )
+    );
 
   if (!quiz || !question)
     return (
@@ -297,8 +302,9 @@ export default function PlayContent() {
           </div>
         </div>
       </>
-    )
+    );
 
+  /*
   if (showCountdown)
     return (
       <>
@@ -324,7 +330,8 @@ export default function PlayContent() {
           </motion.div>
         </div>
       </>
-    )
+    );
+  */
 
   if (!isQuizStarted)
     return (
@@ -336,7 +343,7 @@ export default function PlayContent() {
           </div>
         </div>
       </>
-    )
+    );
 
   return (
     <>
@@ -387,13 +394,13 @@ export default function PlayContent() {
               className={`grid ${question.choices.length === 3 ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2"} gap-4`}
             >
               {question.choices.map((choice, index) => {
-                const isSelected = selectedChoiceId === choice.id
-                const isRight = choice.is_correct
-                let buttonColor: "blue" | "green" | "red" = "blue"
+                const isSelected = selectedChoiceId === choice.id;
+                const isRight = choice.is_correct;
+                let buttonColor: "blue" | "green" | "red" = "blue";
 
                 if (isAnswered) {
-                  if (isRight) buttonColor = "green"
-                  else if (isSelected && !isRight) buttonColor = "red"
+                  if (isRight) buttonColor = "green";
+                  else if (isSelected && !isRight) buttonColor = "red";
                 }
 
                 return (
@@ -406,7 +413,7 @@ export default function PlayContent() {
                   >
                     <div className="flex items-center gap-3">
                       <span className="font-bold text-lg bg-black/30 px-2 py-1 rounded border border-white/20 min-w-[32px] text-center">
-                        {getChoiceLabel(index)}
+                        {String.fromCharCode(65 + index)}
                       </span>
                       <div className="flex-1 flex items-center gap-3">
                         {choice.choice_image_url && (
@@ -424,7 +431,7 @@ export default function PlayContent() {
                       </div>
                     </div>
                   </PixelButton>
-                )
+                );
               })}
             </div>
 
@@ -440,12 +447,23 @@ export default function PlayContent() {
                     {isCorrect ? "✅ Correct!" : "❌ Wrong!"}
                   </div>
                 </motion.div>
-                // komen
               )}
             </AnimatePresence>
           </motion.div>
         </div>
       </div>
     </>
-  )
+  );
+}
+
+function Background() {
+  return (
+    <div className="fixed inset-0 z-0 overflow-hidden">
+      <div className="absolute inset-0 bg-[url('/images/space_bg.jpg')]" style={{ backgroundSize: "cover", imageRendering: "pixelated" }} />
+      {/* <div className="absolute bottom-0 w-full h-1/3 bg-[#8B4513]" style={{ imageRendering: "pixelated" }}>
+        <div className="absolute top-0 w-full h-6 bg-[#228B22]" style={{ imageRendering: "pixelated" }} />
+      </div>
+      <div className="absolute inset-0 bg-black/40" /> */}
+    </div>
+  );
 }

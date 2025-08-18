@@ -1,10 +1,11 @@
 /* eslint-disable @next/next/no-img-element */
-"use client"
+"use client";
 
-import type React from "react"
-import { useState, useEffect, useCallback } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import { useRouter, useSearchParams } from "next/navigation"
+import type React from "react";
+import { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
+import { QRCodeSVG } from "qrcode.react";
 import {
   Play,
   Users,
@@ -15,18 +16,16 @@ import {
   HelpCircle,
   Copy,
   Check,
-} from "lucide-react"
-import { QRCodeSVG } from "qrcode.react"
-import { useGameStore } from "@/lib/store"
-import { supabase } from "@/lib/supabase"
-import { fetchQuizzes } from "@/lib/dummy-data"
-import { toast, Toaster } from "sonner"
-import Image from "next/image"
-import { Progress } from "@/components/ui/progress"
-import type { Quiz, Player } from "@/lib/types"
-import { RulesDialog } from "@/components/rules-dialog"
-import { createGame } from "@/lib/game-utils"
-import type { GameSettings } from "@/lib/types"
+} from "lucide-react";
+import { useGameStore } from "@/lib/store";
+import { supabase } from "@/lib/supabase";
+import { fetchQuizzes } from "@/lib/dummy-data";
+import { toast, Toaster } from "sonner";
+import Image from "next/image";
+import { Progress } from "@/components/ui/progress";
+import type { Quiz, Player } from "@/lib/types";
+import { RulesDialog } from "@/components/rules-dialog";
+import type { GameSettings } from "@/lib/types";
 
 // Pixel Button Component
 function PixelButton({
@@ -36,8 +35,8 @@ function PixelButton({
   children,
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  color?: string
-  size?: string
+  color?: string;
+  size?: string;
 }) {
   const colorStyles: Record<string, string> = {
     red: "bg-red-500 border-red-700 text-white hover:bg-red-600 active:bg-red-700",
@@ -45,14 +44,12 @@ function PixelButton({
     blue: "bg-blue-500 border-blue-700 text-white hover:bg-blue-600 active:bg-blue-700",
     yellow: "bg-yellow-400 border-yellow-600 text-black hover:bg-yellow-500 active:bg-yellow-600",
     gray: "bg-gray-500 border-gray-700 text-white hover:bg-gray-600 active:bg-gray-700",
-  }
-
+  };
   const sizeStyles: Record<string, string> = {
     sm: "px-3 py-2 text-xs",
     md: "px-4 py-3 text-sm",
     lg: "px-6 py-4 text-base",
-  }
-
+  };
   return (
     <button
       className={`border-2 font-mono uppercase tracking-wide shadow-[4px_4px_0px_rgba(0,0,0,0.8)] active:shadow-[2px_2px_0px_rgba(0,0,0,0.8)] active:translate-x-[2px] active:translate-y-[2px] transition-all ${colorStyles[color]} ${sizeStyles[size]} ${className}`}
@@ -60,169 +57,114 @@ function PixelButton({
     >
       {children}
     </button>
-  )
+  );
 }
 
 interface PlayerProgress {
-  id: string
-  name: string
-  avatar: string
-  score: number
-  currentQuestion: number
-  totalQuestions: number
-  isActive: boolean
+  id: string;
+  name: string;
+  avatar: string;
+  score: number;
+  currentQuestion: number;
+  totalQuestions: number;
+  isActive: boolean;
 }
 
-export default function HostContent() {
-  const searchParams = useSearchParams()
-  const router = useRouter()
-  const gameId = searchParams.get("gameId")
-  const gameCode = searchParams.get("gameCode")
-  const quizId = searchParams.get("quizId")
+interface HostContentProps {
+  gameCode: string;
+}
 
-  useEffect(() => {
-    if (!gameId || !gameCode || !quizId) {
-      router.replace("/")
-    }
-  }, [gameId, gameCode, quizId, router])
+export default function HostContent({ gameCode }: HostContentProps) {
+  const router = useRouter();
 
-  const [isStarting, setIsStarting] = useState(false)
-  const [playerProgress, setPlayerProgress] = useState<PlayerProgress[]>([])
-  const [quizStarted, setQuizStarted] = useState(false)
-  const [showLeaderboard, setShowLeaderboard] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const [showExitModal, setShowExitModal] = useState(false)
-  const [quiz, setQuiz] = useState<Quiz | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [showRulesDialog, setShowRulesDialog] = useState(false)
-  const [quizTimeLeft, setQuizTimeLeft] = useState(0)
-  const [isTimerActive, setIsTimerActive] = useState(false)
-  const [leaderboardAnimated, setLeaderboardAnimated] = useState(false)
+  /* ------------------ STATE ------------------ */
+  const [gameId, setGameId] = useState<string | null>(null);
+  const [quiz, setQuiz] = useState<Quiz | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  function handleAnimationComplete() {
-    setLeaderboardAnimated(true)
-  }
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [playerProgress, setPlayerProgress] = useState<PlayerProgress[]>([]);
 
+  const [quizStarted, setQuizStarted] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [quizTimeLeft, setQuizTimeLeft] = useState(0);
+  const [isTimerActive, setIsTimerActive] = useState(false);
+
+  const [copied, setCopied] = useState(false);
+  const [showExitModal, setShowExitModal] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
+
+  /* ------------------ STORE ------------------ */
   const {
-    gameCode: storedGameCode,
-    gameId: storedGameId,
-    quizId: storedQuizId,
-    players,
-    setPlayers,
-    gameSettings,
-    setGameSettings,
     setGameCode,
-    setGameId,
     setQuizId,
     setIsHost,
-  } = useGameStore()
+    gameSettings,
+    setGameSettings,
+  } = useGameStore();
 
-  const joinUrl =
-    typeof window !== "undefined"
-      ? `${window.location.protocol}//${window.location.host}?code=${gameCode}`
-      : `https://${process.env.NEXT_PUBLIC_VERCEL_URL || "localhost:3000"}?code=${gameCode}`
-
-  useEffect(() => {
-    if (!gameId || !gameCode) {
-      setShowRulesDialog(true)
-      return
-    }
-    const fetchGameData = async () => {
-      try {
-        const { data: gameData } = await supabase.from("games").select("*").eq("id", gameId).single()
-        if (gameData) {
-          setGameSettings({
-            timeLimit: gameData.time_limit,
-            questionCount: gameData.question_count,
-          })
-          setIsHost(true)
-        }
-      } catch {
-        setShowRulesDialog(true)
-      }
-    }
-    fetchGameData()
-  }, [gameId, gameCode, setGameSettings, setIsHost])
+  const [joinUrl, setJoinUrl] = useState("");
 
   useEffect(() => {
-    if (!quizId) {
-      toast.error("Missing quiz data.")
-      router.push("/")
-      return
-    }
-    const loadQuiz = async () => {
-      setLoading(true)
-      try {
-        const quizzes = await fetchQuizzes()
-        const found = quizzes.find((q) => q.id === Number(quizId))
-        if (!found) {
-          toast.error("Quiz not found.")
-          router.push("/")
-        } else {
-          setQuiz(found)
-        }
-      } catch {
-        toast.error("Failed to load quiz.")
-        router.push("/")
-      } finally {
-        setLoading(false)
+    setJoinUrl(`${window.location.origin}/wait/${gameCode}`);
+  }, [gameCode]);
+
+  /* ------------------ FETCH DATA ------------------ */
+  useEffect(() => {
+    const fetchData = async () => {
+      const { data: gameData, error: gameErr } = await supabase
+        .from("games")
+        .select("id, quiz_id, time_limit, question_count, is_started, finished")
+        .eq("code", gameCode.toUpperCase())
+        .single();
+
+      if (gameErr || !gameData) {
+        toast.error("Game not found!");
+        router.replace("/");
+        return;
       }
-    }
-    loadQuiz()
-  }, [quizId, router])
 
-  const handleStartGame = async (settings: GameSettings) => {
-    if (
-      typeof settings.timeLimit !== "number" ||
-      typeof settings.questionCount !== "number" ||
-      settings.timeLimit <= 0 ||
-      settings.questionCount <= 0
-    ) {
-      toast.error("Invalid game settings")
-      return
-    }
-    try {
-      setLoading(true)
-      const defaultQuizId = 1
-      const hostId = "host-" + Date.now()
-      const gameData = await createGame(defaultQuizId, hostId, settings)
-      setGameId(gameData.gameId)
-      setGameCode(gameData.gameCode)
-      setQuizId(defaultQuizId)
-      setGameSettings({
-        timeLimit: gameData.timeLimit,
-        questionCount: gameData.questionCount,
-      })
-      setIsHost(true)
-      setShowRulesDialog(false)
-      toast.success("🎮 Game created successfully!")
-    } catch {
-      toast.error("❌ Failed to create game")
-    } finally {
-      setLoading(false)
-    }
-  }
+      setGameId(gameData.id);
+      setGameCode(gameCode);
+      setQuizId(gameData.quiz_id);
+      setGameSettings({ timeLimit: gameData.time_limit, questionCount: gameData.question_count });
+      setIsHost(true);
+      setQuizStarted(gameData.is_started);
+      setShowLeaderboard(gameData.finished);
 
+      const quizzes = await fetchQuizzes();
+      const found = quizzes.find((q) => q.id === gameData.quiz_id);
+      if (!found) {
+        toast.error("Quiz not found!");
+        router.replace("/");
+        return;
+      }
+      setQuiz(found);
+      setLoading(false);
+    };
+    fetchData();
+  }, [gameCode, router, setGameCode, setGameId, setQuizId, setGameSettings, setIsHost]);
+
+  /* ------------------ REALTIME & LOGIC ------------------ */
   const fetchPlayers = useCallback(async () => {
-    if (!gameId) return
-    const { data } = await supabase.from("players").select("*").eq("game_id", gameId)
-    if (data) setPlayers(data)
-  }, [gameId, setPlayers])
+    if (!gameId) return;
+    const { data } = await supabase.from("players").select("*").eq("game_id", gameId);
+    if (data) setPlayers(data);
+  }, [gameId]);
 
   const updatePlayerProgress = useCallback(async () => {
-    if (!gameId || !quiz) return
+    if (!gameId || !quiz) return;
     const { data: answers } = await supabase
       .from("player_answers")
       .select("player_id, question_index, points_earned")
-      .eq("game_id", gameId)
+      .eq("game_id", gameId);
+    const { data: playersData } = await supabase.from("players").select("*").eq("game_id", gameId);
 
-    const { data: playersData } = await supabase.from("players").select("*").eq("game_id", gameId)
-
-    const progressMap = new Map<string, PlayerProgress>()
+    const progressMap = new Map<string, PlayerProgress>();
     playersData?.forEach((player: Player) => {
-      const playerAnswers = answers?.filter((a) => a.player_id === player.id) || []
-      const score = playerAnswers.reduce((sum, a) => sum + (a.points_earned || 0), 0)
-      const currentQuestion = playerAnswers.length
+      const playerAnswers = answers?.filter((a) => a.player_id === player.id) || [];
+      const score = playerAnswers.reduce((sum, a) => sum + (a.points_earned || 0), 0);
+      const currentQuestion = playerAnswers.length;
       progressMap.set(player.id, {
         id: player.id,
         name: player.name,
@@ -231,155 +173,142 @@ export default function HostContent() {
         currentQuestion,
         totalQuestions: quiz.questionCount,
         isActive: currentQuestion < quiz.questionCount,
-      })
-    })
-    setPlayerProgress(Array.from(progressMap.values()))
-
-    const sudahSelesai = Array.from(progressMap.values()).some((p) => p.currentQuestion >= quiz.questionCount)
-    if (sudahSelesai && !showLeaderboard) {
-      await supabase.from("games").update({ is_started: false, finished: true }).eq("id", gameId)
+      });
+    });
+    setPlayerProgress(Array.from(progressMap.values()));
+    const allDone = Array.from(progressMap.values()).every((p) => p.currentQuestion >= quiz.questionCount);
+    if (allDone && !showLeaderboard) {
+      await supabase.from("games").update({ finished: true }).eq("id", gameId);
     }
-  }, [gameId, quiz, showLeaderboard])
+  }, [gameId, quiz, showLeaderboard]);
 
   useEffect(() => {
-    if (!gameId) return
+    if (!gameId) return;
     const gameSubscription = supabase
       .channel("game_status")
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "games", filter: `id=eq.${gameId}` }, (payload) => {
         if (payload.new.finished) {
-          setQuizStarted(false)
-          setShowLeaderboard(true)
-          toast.success("🎉 Quiz ended!")
+          setQuizStarted(false);
+          setShowLeaderboard(true);
+          toast.success("🎉 Quiz ended!");
         }
       })
-      .subscribe()
+      .subscribe();
 
     const playersSubscription = supabase
       .channel("players")
-      .on("postgres_changes", { event: "*", schema: "public", table: "players", filter: `game_id=eq.${gameId}` }, () => {
-        fetchPlayers()
-      })
-      .subscribe()
+      .on("postgres_changes", { event: "*", schema: "public", table: "players", filter: `game_id=eq.${gameId}` }, () => fetchPlayers())
+      .subscribe();
 
-    let answersSubscription: any = null
+    let answersSubscription: any = null;
     if (!showLeaderboard) {
       answersSubscription = supabase
         .channel("player_answers")
-        .on("postgres_changes", { event: "*", schema: "public", table: "player_answers", filter: `game_id=eq.${gameId}` }, () => {
-          if (quizStarted) setTimeout(updatePlayerProgress, 1000)
-        })
-        .subscribe()
+        .on("postgres_changes", { event: "*", schema: "public", table: "player_answers", filter: `game_id=eq.${gameId}` }, () => quizStarted && setTimeout(updatePlayerProgress, 1000))
+        .subscribe();
     }
 
-    fetchPlayers()
+    fetchPlayers();
     return () => {
-      supabase.removeChannel(gameSubscription)
-      supabase.removeChannel(playersSubscription)
-      if (answersSubscription) supabase.removeChannel(answersSubscription)
-    }
-  }, [gameId, fetchPlayers, quizStarted, showLeaderboard])
+      supabase.removeChannel(gameSubscription);
+      supabase.removeChannel(playersSubscription);
+      if (answersSubscription) supabase.removeChannel(answersSubscription);
+    };
+  }, [gameId, fetchPlayers, quizStarted, showLeaderboard, updatePlayerProgress]);
 
   useEffect(() => {
-    if (quizStarted && gameId && quiz) updatePlayerProgress()
-  }, [quizStarted, gameId, quiz])
+    if (quizStarted && gameId && quiz) updatePlayerProgress();
+  }, [quizStarted, gameId, quiz, updatePlayerProgress]);
 
   useEffect(() => {
-    if (!quizStarted || !gameSettings.timeLimit) return
-    const initializeTimer = async () => {
-      try {
-        const { data } = await supabase.from("games").select("quiz_start_time, time_limit").eq("id", gameId).single()
-        if (!data?.quiz_start_time) {
-          const startTime = new Date().toISOString()
-          await supabase.from("games").update({ quiz_start_time: startTime }).eq("id", gameId)
-          setQuizTimeLeft(gameSettings.timeLimit)
-        } else {
-          const startTime = new Date(data.quiz_start_time).getTime()
-          const elapsed = Math.floor((Date.now() - startTime) / 1000)
-          setQuizTimeLeft(Math.max(0, data.time_limit - elapsed))
-        }
-        setIsTimerActive(true)
-      } catch {
-        setQuizTimeLeft(gameSettings.timeLimit)
-        setIsTimerActive(true)
+    if (!quizStarted || !gameSettings.timeLimit) return;
+    const init = async () => {
+      const { data } = await supabase.from("games").select("quiz_start_time, time_limit").eq("id", gameId).single();
+      if (!data?.quiz_start_time) {
+        const startTime = new Date().toISOString();
+        await supabase.from("games").update({ quiz_start_time: startTime }).eq("id", gameId);
+        setQuizTimeLeft(gameSettings.timeLimit);
+      } else {
+        const start = new Date(data.quiz_start_time).getTime();
+        const elapsed = Math.floor((Date.now() - start) / 1000);
+        setQuizTimeLeft(Math.max(0, data.time_limit - elapsed));
       }
-    }
-    initializeTimer()
-  }, [quizStarted, gameSettings.timeLimit, gameId])
+      setIsTimerActive(true);
+    };
+    init();
+  }, [quizStarted, gameSettings.timeLimit, gameId]);
 
   useEffect(() => {
-    if (!isTimerActive || quizTimeLeft <= 0) return
+    if (!isTimerActive || quizTimeLeft <= 0) return;
     const timer = setInterval(() => {
       setQuizTimeLeft((prev) => {
         if (prev <= 1) {
-          setIsTimerActive(false)
-          return 0
+          setIsTimerActive(false);
+          return 0;
         }
-        return prev - 1
-      })
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [isTimerActive, quizTimeLeft])
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isTimerActive, quizTimeLeft]);
 
+  /* ------------------ HANDLERS ------------------ */
   const handleCopyCode = () => {
-    navigator.clipboard.writeText(gameCode ?? "")
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
+    navigator.clipboard.writeText(gameCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const startQuiz = async () => {
     if (players.length === 0) {
-      toast.error("❌ No players have joined yet!")
-      return
+      toast.error("❌ No players have joined!");
+      return;
     }
-    setIsStarting(true)
+    setIsStarting(true);
     try {
-      await supabase.from("games").update({ is_started: true }).eq("id", gameId)
-      setQuizStarted(true)
-      toast.success("🚀 Quiz started!")
+      await supabase.from("games").update({ is_started: true }).eq("id", gameId);
+      setQuizStarted(true);
+      toast.success("🚀 Quiz started!");
     } catch {
-      toast.error("❌ Failed to start quiz")
+      toast.error("❌ Failed to start quiz");
     } finally {
-      setIsStarting(false)
+      setIsStarting(false);
     }
-  }
+  };
 
   const endQuiz = async () => {
     try {
-      await supabase.from("games").update({ is_started: false, finished: true }).eq("id", gameId)
-      toast.success("🏁 Quiz ended!")
-      setQuizStarted(false)
-      setShowLeaderboard(true)
+      await supabase.from("games").update({ is_started: false, finished: true }).eq("id", gameId);
+      toast.success("🏁 Quiz ended!");
+      setQuizStarted(false);
+      setShowLeaderboard(true);
     } catch {
-      toast.error("❌ Failed to end quiz")
+      toast.error("❌ Failed to end quiz");
     }
-  }
+  };
 
   const handleExitGame = async () => {
-    try {
-      if (gameId) {
-        await supabase.from("games").update({ is_started: false, finished: true }).eq("id", gameId)
-      }
-      router.push("/")
-    } catch {
-      router.push("/")
-    }
-  }
+    if (gameId) await supabase.from("games").update({ finished: true }).eq("id", gameId);
+    router.push("/");
+  };
 
   const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
-  }
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
 
   const PodiumLeaderboard = ({ animateOnce, onAnimationComplete }: {
-    animateOnce: boolean
-    onAnimationComplete: () => void
+    animateOnce: boolean;
+    onAnimationComplete: () => void;
   }) => {
-    const sorted = [...playerProgress].sort((a, b) => b.score - a.score)
-    const first = sorted[0] || { name: "No Player", score: 0, avatar: "/placeholder.svg" }
-    const second = sorted[1] || { name: "No Player", score: 0, avatar: "/placeholder.svg" }
-    const third = sorted[2] || { name: "No Player", score: 0, avatar: "/placeholder.svg" }
-    const rest = sorted.slice(3)
+    const sorted = [...playerProgress].sort((a, b) => b.score - a.score);
+    const [second, first, third] = [
+      sorted[1] || { name: "No Player", score: 0, avatar: "/placeholder.svg" },
+      sorted[0] || { name: "No Player", score: 0, avatar: "/placeholder.svg" },
+      sorted[2] || { name: "No Player", score: 0, avatar: "/placeholder.svg" },
+    ];
+    const rest = sorted.slice(3);
 
     return (
       <motion.div
@@ -424,15 +353,16 @@ export default function HostContent() {
           </PixelButton>
         </div>
       </motion.div>
-    )
-  }
+    );
+  };
 
+  /* ------------------ RENDER ------------------ */
   if (loading)
     return (
       <div className="fixed inset-0 bg-[#87CEEB] flex items-center justify-center font-mono text-white">
         <div className="text-white font-mono text-lg">Loading quiz...</div>
       </div>
-    )
+    );
 
   if (!quiz)
     return (
@@ -442,18 +372,31 @@ export default function HostContent() {
           <PixelButton onClick={() => router.push("/")}>Back</PixelButton>
         </div>
       </div>
-    )
+    );
 
   return (
     <>
+      <Toaster
+        position="top-center"
+        toastOptions={{
+          style: {
+            fontFamily: "Press Start 2P",
+            fontSize: "12px",
+            background: "#222",
+            color: "#fff",
+            border: "2px solid #fff",
+          },
+        }}
+      />
       <RulesDialog
-        open={showRulesDialog}
-        onOpenChange={setShowRulesDialog}
+        open={false}
+        onOpenChange={() => { }}
         quiz={quiz}
-        onStartGame={handleStartGame}
+        onStartGame={() => { }}
         aria-describedby="rules-description"
       />
 
+      {/* BACKGROUND PIXEL */}
       <div className="fixed inset-0 z-0 overflow-hidden">
         <div className="absolute inset-0 bg-[#87CEEB]" style={{ imageRendering: "pixelated" }} />
         <div className="absolute bottom-0 w-full h-1/3 bg-[#8B4513]" style={{ imageRendering: "pixelated" }}>
@@ -465,8 +408,8 @@ export default function HostContent() {
       <div className="relative z-10 container mx-auto px-4 py-8 min-h-screen font-mono text-white">
         {showLeaderboard ? (
           <PodiumLeaderboard
-            animateOnce={!leaderboardAnimated}
-            onAnimationComplete={handleAnimationComplete}
+            animateOnce={true}
+            onAnimationComplete={() => { }}
           />
         ) : !quizStarted ? (
           /* ---------- WAITING ROOM ---------- */
@@ -480,15 +423,7 @@ export default function HostContent() {
                 <div className="flex gap-4 justify-center mb-4">
                   <div className="flex items-center gap-2 bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
                     <Timer className="w-4 h-4" />
-                    {(() => {
-                      const totalSeconds = gameSettings.timeLimit
-                      const minutes = Math.floor(totalSeconds / 60)
-                      const seconds = totalSeconds % 60
-                      if (minutes > 0) {
-                        return seconds > 0 ? `${minutes}m ${seconds}s total` : `${minutes}m total`
-                      }
-                      return `${totalSeconds}s total`
-                    })()}
+                    {formatTime(gameSettings.timeLimit)}
                   </div>
                   <div className="flex items-center gap-2 bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm">
                     <HelpCircle className="w-4 h-4" />
@@ -650,46 +585,9 @@ export default function HostContent() {
             </motion.div>
           </div>
         )}
-
-        <AnimatePresence>
-          {showExitModal && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm"
-              onClick={() => setShowExitModal(false)}
-            >
-              <motion.div
-                initial={{ scale: 0.8, opacity: 0, y: 20 }}
-                animate={{ scale: 1, opacity: 1, y: 0 }}
-                exit={{ scale: 0.8, opacity: 0, y: 20 }}
-                transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                className="bg-[#1a1a2e] border-4 border-white font-mono text-white p-8 rounded-lg shadow-[8px_8px_0px_#000] max-w-md w-full mx-4"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="text-center">
-                  <div className="text-4xl mb-4">⚠️</div>
-                  <h2 className="text-xl mb-4 font-bold">Exit Game?</h2>
-                  <p className="text-sm mb-6 text-white/80">
-                    Are you sure you want to exit? All game progress will be lost and players will be disconnected.
-                  </p>
-                  <div className="flex justify-center gap-4">
-                    <PixelButton color="gray" onClick={() => setShowExitModal(false)}>
-                      Cancel
-                    </PixelButton>
-                    <PixelButton color="red" onClick={handleExitGame}>
-                      Exit Game
-                    </PixelButton>
-                  </div>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
 
-      <Toaster
+      {/* <Toaster
         position="top-center"
         toastOptions={{
           style: {
@@ -700,8 +598,44 @@ export default function HostContent() {
             border: "2px solid #fff",
           },
         }}
-      />
-      {/* komen */}
+      /> */}
+      {/* Modal Exit */}
+      <AnimatePresence>
+        {showExitModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+            onClick={() => setShowExitModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.8, opacity: 0, y: 20 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="bg-[#1a1a2e] border-4 border-white font-mono text-white p-8 rounded-lg shadow-[8px_8px_0px_#000] max-w-md w-full mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-center">
+                <div className="text-4xl mb-4">⚠️</div>
+                <h2 className="text-xl mb-4 font-bold">Exit Game?</h2>
+                <p className="text-sm mb-6 text-white/80">
+                  Are you sure you want to exit? All game progress will be lost and players will be disconnected.
+                </p>
+                <div className="flex justify-center gap-4">
+                  <PixelButton color="gray" onClick={() => setShowExitModal(false)}>
+                    Cancel
+                  </PixelButton>
+                  <PixelButton color="red" onClick={handleExitGame}>
+                    Exit Game
+                  </PixelButton>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
-  )
+  );
 }

@@ -146,7 +146,7 @@ export function QuizSelectionDialog({ open, onOpenChange }: QuizSelectionDialogP
       setIsHost(true)
 
       // Tambahkan redirect dengan parameter
-      router.push(`/host?gameId=${data.id}&gameCode=${gameCode}&quizId=${selectedQuiz.id}`)
+      router.push(`/host/${gameCode}`)
 
       onOpenChange(false)
       setShowRulesDialog(false)
