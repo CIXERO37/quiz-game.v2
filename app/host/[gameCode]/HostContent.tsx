@@ -61,6 +61,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
   const [copied, setCopied] = useState(false)
   const [showExitModal, setShowExitModal] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
   /* ------------------ STORE ------------------ */
   const { setGameCode, setQuizId, setIsHost, gameSettings, setGameSettings } = useGameStore()
@@ -68,17 +69,16 @@ export default function HostContent({ gameCode }: HostContentProps) {
   const [joinUrl, setJoinUrl] = useState("")
 
   useEffect(() => {
-    setJoinUrl(`${window.location.origin}/wait/${gameCode}`)
+    setMounted(true)
+    setJoinUrl(`${window.location.origin}/?code=${gameCode}`)
   }, [gameCode])
 
   const calculateRanking = (players: PlayerProgress[]): PlayerProgress[] => {
     return players
       .sort((a, b) => {
-        // Primary sort: current question (higher is better)
         if (b.currentQuestion !== a.currentQuestion) {
           return b.currentQuestion - a.currentQuestion
         }
-        // Secondary sort: score (higher is better)
         return b.score - a.score
       })
       .map((player, index) => ({
@@ -133,8 +133,6 @@ export default function HostContent({ gameCode }: HostContentProps) {
   const updatePlayerProgress = useCallback(async () => {
     if (!gameId || !quiz) return
 
-    console.log("[v0] Updating player progress for gameId:", gameId)
-
     const [answersResult, playersResult] = await Promise.all([
       supabase
         .from("player_answers")
@@ -147,9 +145,6 @@ export default function HostContent({ gameCode }: HostContentProps) {
     const answers = answersResult.data || []
     const playersData = playersResult.data || []
 
-    console.log("[v0] Player answers:", answers)
-    console.log("[v0] Players data:", playersData)
-
     const progressMap = new Map<string, PlayerProgress>()
 
     playersData.forEach((player: Player) => {
@@ -157,25 +152,15 @@ export default function HostContent({ gameCode }: HostContentProps) {
       const score = playerAnswers.reduce((sum, a) => sum + (a.points_earned || 0), 0)
 
       const answeredQuestions = playerAnswers.length
-      const currentQuestion = answeredQuestions + 1 // Next question they're working on
+      const currentQuestion = answeredQuestions + 1
       const isActive = answeredQuestions < quiz.questionCount
-
-      console.log("[v0] Player progress calculation:", {
-        name: player.name,
-        answeredQuestions,
-        currentQuestion,
-        totalQuestions: quiz.questionCount,
-        score,
-        isActive,
-        progressPercentage: Math.round((answeredQuestions / quiz.questionCount) * 100),
-      })
 
       progressMap.set(player.id, {
         id: player.id,
         name: player.name,
         avatar: player.avatar || "/placeholder.svg?height=40&width=40&text=Player",
         score,
-        currentQuestion: currentQuestion,
+        currentQuestion,
         totalQuestions: quiz.questionCount,
         isActive,
         rank: 0,
@@ -184,13 +169,10 @@ export default function HostContent({ gameCode }: HostContentProps) {
 
     const playersArray = Array.from(progressMap.values())
     const rankedPlayers = calculateRanking(playersArray)
-
-    console.log("[v0] Final ranked players:", rankedPlayers)
     setPlayerProgress(rankedPlayers)
 
     const allDone = rankedPlayers.every((p) => p.currentQuestion > quiz.questionCount)
     if (allDone && rankedPlayers.length > 0 && !showLeaderboard) {
-      console.log("[v0] All players finished, ending quiz")
       await supabase.from("games").update({ finished: true }).eq("id", gameId)
     }
   }, [gameId, quiz, showLeaderboard])
@@ -204,7 +186,6 @@ export default function HostContent({ gameCode }: HostContentProps) {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "games", filter: `id=eq.${gameId}` },
         (payload) => {
-          console.log("[v0] Game status update:", payload.new)
           if (payload.new.finished) {
             setQuizStarted(false)
             setShowLeaderboard(true)
@@ -223,7 +204,6 @@ export default function HostContent({ gameCode }: HostContentProps) {
         "postgres_changes",
         { event: "*", schema: "public", table: "players", filter: `game_id=eq.${gameId}` },
         () => {
-          console.log("[v0] Players table changed")
           fetchPlayers()
           updatePlayerProgress()
         },
@@ -235,11 +215,8 @@ export default function HostContent({ gameCode }: HostContentProps) {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "player_answers", filter: `game_id=eq.${gameId}` },
-        (payload) => {
-          console.log("[v0] Player answer submitted:", payload)
-          setTimeout(() => {
-            updatePlayerProgress()
-          }, 100)
+        () => {
+          setTimeout(() => updatePlayerProgress(), 100)
         },
       )
       .subscribe()
@@ -253,20 +230,6 @@ export default function HostContent({ gameCode }: HostContentProps) {
       supabase.removeChannel(answersSubscription)
     }
   }, [gameId, fetchPlayers, quizStarted, showLeaderboard, updatePlayerProgress])
-
-  useEffect(() => {
-    if (quizStarted && gameId && quiz) {
-      console.log("[v0] Quiz started, setting up frequent progress updates")
-      updatePlayerProgress()
-
-      const interval = setInterval(() => {
-        console.log("[v0] Periodic progress update")
-        updatePlayerProgress()
-      }, 1000) // Update every second during quiz
-
-      return () => clearInterval(interval)
-    }
-  }, [quizStarted, gameId, quiz, updatePlayerProgress])
 
   useEffect(() => {
     if (!quizStarted || !gameSettings.timeLimit) return
@@ -346,27 +309,14 @@ export default function HostContent({ gameCode }: HostContentProps) {
   const handleExitGame = async () => {
     if (gameId) {
       try {
-        console.log("[v0] Host exiting game, gameId:", gameId)
+        await supabase.from("games").update({
+          finished: true,
+          is_started: false,
+          status: "ended",
+          quiz_start_time: null,
+        }).eq("id", gameId)
 
-        const updateResult = await supabase
-          .from("games")
-          .update({
-            finished: true,
-            is_started: false,
-            status: "ended",
-            quiz_start_time: null,
-          })
-          .eq("id", gameId)
-
-        console.log("[v0] Game update result:", updateResult)
-
-        const deleteResult = await supabase.from("players").delete().eq("game_id", gameId)
-        console.log("[v0] Players delete result:", deleteResult)
-
-        const { data: verifyGame } = await supabase.from("games").select("*").eq("id", gameId).single()
-
-        console.log("[v0] Game after update:", verifyGame)
-
+        await supabase.from("players").delete().eq("game_id", gameId)
         toast.success("🚪 Game session ended")
       } catch (error) {
         console.error("Error ending game session:", error)
@@ -475,7 +425,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
   if (loading)
     return (
       <div className="fixed inset-0 bg-gradient-to-b from-gray-900 via-indigo-950 to-black flex items-center justify-center font-mono text-white">
-        <AnimatedStars />
+        {mounted && <AnimatedStars />}
         <div className="relative z-10 text-white font-mono text-lg">Loading quiz...</div>
       </div>
     )
@@ -483,7 +433,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
   if (!quiz)
     return (
       <div className="fixed inset-0 bg-gradient-to-b from-gray-900 via-indigo-950 to-black flex items-center justify-center font-mono text-white">
-        <AnimatedStars />
+        {mounted && <AnimatedStars />}
         <div className="relative z-10 bg-white/10 border-2 border-white/30 p-8 text-center font-mono text-white rounded-lg backdrop-blur-sm">
           <p className="mb-4">Quiz not found.</p>
           <PixelButton onClick={() => router.push("/")}>Back</PixelButton>
@@ -507,33 +457,22 @@ export default function HostContent({ gameCode }: HostContentProps) {
       />
       <RulesDialog
         open={false}
-        onOpenChange={() => {}}
+        onOpenChange={() => { }}
         quiz={quiz}
-        onStartGame={() => {}}
+        onStartGame={() => { }}
         aria-describedby="rules-description"
       />
 
       {/* Background with animated galaxy theme */}
       <div className="fixed inset-0 z-0 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-gray-900 via-indigo-950 to-black" />
-        <div className="absolute inset-0">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl animate-pulse" />
-          <div
-            className="absolute top-3/4 right-1/4 w-80 h-80 bg-indigo-600/8 rounded-full blur-3xl animate-pulse"
-            style={{ animationDelay: "1s" }}
-          />
-          <div
-            className="absolute bottom-1/4 left-1/2 w-64 h-64 bg-violet-600/6 rounded-full blur-3xl animate-pulse"
-            style={{ animationDelay: "2s" }}
-          />
-        </div>
-        <AnimatedStars />
+        {mounted && <AnimatedStars />}
         <div className="absolute inset-0 bg-black/40" />
       </div>
 
       <div className="relative z-10 container mx-auto px-4 py-8 min-h-screen font-mono text-white">
         {showLeaderboard ? (
-          <PodiumLeaderboard animateOnce={true} onAnimationComplete={() => {}} />
+          <PodiumLeaderboard animateOnce={true} onAnimationComplete={() => { }} />
         ) : !quizStarted ? (
           /* ---------- WAITING ROOM ---------- */
           <div className="grid lg:grid-cols-2 gap-8">
@@ -696,15 +635,14 @@ export default function HostContent({ gameCode }: HostContentProps) {
                       >
                         <div className="absolute top-4 left-4 z-10">
                           <div
-                            className={`flex items-center justify-center w-10 h-10 rounded-full ${
-                              player.rank === 1
-                                ? "bg-yellow-400/20 border-2 border-yellow-400"
-                                : player.rank === 2
-                                  ? "bg-gray-300/20 border-2 border-gray-300"
-                                  : player.rank === 3
-                                    ? "bg-amber-600/20 border-2 border-amber-600"
-                                    : "bg-white/10 border-2 border-white/30"
-                            }`}
+                            className={`flex items-center justify-center w-10 h-10 rounded-full ${player.rank === 1
+                              ? "bg-yellow-400/20 border-2 border-yellow-400"
+                              : player.rank === 2
+                                ? "bg-gray-300/20 border-2 border-gray-300"
+                                : player.rank === 3
+                                  ? "bg-amber-600/20 border-2 border-amber-600"
+                                  : "bg-white/10 border-2 border-white/30"
+                              }`}
                           >
                             {getRankIcon(player.rank)}
                           </div>
@@ -753,20 +691,18 @@ export default function HostContent({ gameCode }: HostContentProps) {
                                   width: `${player.totalQuestions > 0 ? ((player.currentQuestion - 1) / player.totalQuestions) * 100 : 0}%`,
                                 }}
                                 transition={{ duration: 0.8, ease: "easeOut" }}
-                                className={`h-full rounded-full ${
-                                  player.rank === 1
-                                    ? "bg-gradient-to-r from-yellow-400 to-yellow-600"
-                                    : player.rank === 2
-                                      ? "bg-gradient-to-r from-gray-300 to-gray-500"
-                                      : player.rank === 3
-                                        ? "bg-gradient-to-r from-amber-500 to-amber-700"
-                                        : "bg-gradient-to-r from-blue-400 to-blue-600"
-                                }`}
+                                className={`h-full rounded-full ${player.rank === 1
+                                  ? "bg-gradient-to-r from-yellow-400 to-yellow-600"
+                                  : player.rank === 2
+                                    ? "bg-gradient-to-r from-gray-300 to-gray-500"
+                                    : player.rank === 3
+                                      ? "bg-gradient-to-r from-amber-500 to-amber-700"
+                                      : "bg-gradient-to-r from-blue-400 to-blue-600"
+                                  }`}
                               />
                               <div
-                                className={`absolute inset-0 ${
-                                  player.rank <= 3 ? "animate-pulse" : ""
-                                } bg-gradient-to-r from-transparent via-white/20 to-transparent`}
+                                className={`absolute inset-0 ${player.rank <= 3 ? "animate-pulse" : ""
+                                  } bg-gradient-to-r from-transparent via-white/20 to-transparent`}
                               />
                             </div>
                           </div>
@@ -774,22 +710,21 @@ export default function HostContent({ gameCode }: HostContentProps) {
                           <div className="mt-3 flex items-center justify-between">
                             <div className="flex items-center gap-2">
                               <div
-                                className={`w-2 h-2 rounded-full ${
-                                  player.isActive ? "bg-green-400 animate-pulse" : "bg-gray-400"
-                                }`}
+                                className={`w-2 h-2 rounded-full ${player.isActive ? "bg-green-400 animate-pulse" : "bg-gray-400"
+                                  }`}
                               />
                               <span className="text-xs text-white/70">{player.isActive ? "Active" : "Finished"}</span>
                             </div>
 
                             <div className="text-xs text-white/50">Rank #{player.rank}</div>
                           </div>
-                        </div>
 
-                        {player.rank === 1 && (
-                          <div className="absolute inset-0 pointer-events-none">
-                            <div className="absolute inset-0 bg-gradient-to-r from-yellow-400/5 via-transparent to-yellow-400/5 animate-pulse" />
-                          </div>
-                        )}
+                          {player.rank === 1 && (
+                            <div className="absolute inset-0 pointer-events-none">
+                              <div className="absolute inset-0 bg-gradient-to-r from-yellow-400/5 via-transparent to-yellow-400/5 animate-pulse" />
+                            </div>
+                          )}
+                        </div>
                       </motion.div>
                     ))}
                 </div>
@@ -841,7 +776,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
   )
 }
 
-// Animated Stars Component
+// Animated Stars Component (Fix Hydration)
 const AnimatedStars = () => {
   return (
     <div className="absolute inset-0 overflow-hidden">
@@ -859,7 +794,7 @@ const AnimatedStars = () => {
           }}
           transition={{
             duration: 2 + Math.random() * 3,
-            repeat: Number.POSITIVE_INFINITY,
+            repeat: Infinity,
             delay: Math.random() * 2,
           }}
         />
@@ -890,7 +825,7 @@ const AnimatedStars = () => {
           }}
           transition={{
             duration: 1.5,
-            repeat: Number.POSITIVE_INFINITY,
+            repeat: Infinity,
             delay: i * 4 + Math.random() * 2,
             repeatDelay: 8,
           }}
