@@ -1,11 +1,10 @@
 "use client"
 
 import { useEffect, useState, Suspense } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { motion } from "framer-motion"
 import { Play, Users, Gamepad2, Sparkles, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { QuizSelectionDialog } from "@/components/quiz-selection-dialog"
 import { JoinGameDialog } from "@/components/join-game-dialog"
 
 function GameCodeHandler({ onGameCodeDetected }: { onGameCodeDetected: (code: string) => void }) {
@@ -23,14 +22,18 @@ function GameCodeHandler({ onGameCodeDetected }: { onGameCodeDetected: (code: st
 }
 
 export default function HomePage() {
-  const [showQuizSelection, setShowQuizSelection] = useState(false)
   const [showJoinGame, setShowJoinGame] = useState(false)
   const [gameCodeFromUrl, setGameCodeFromUrl] = useState("")
+  const router = useRouter()
 
   const handleGameCodeDetected = (code: string) => {
     console.log("Setting game code:", code) // Debug log
     setGameCodeFromUrl(code)
     setShowJoinGame(true)
+  }
+
+  const handleHostGame = () => {
+    router.push("/select-quiz")
   }
 
   return (
@@ -193,7 +196,7 @@ export default function HomePage() {
         >
           <motion.div whileHover={{ scale: 1.05, y: -10 }} whileTap={{ scale: 0.95 }} className="group">
             <Button
-              onClick={() => setShowQuizSelection(true)}
+              onClick={handleHostGame}
               className="w-full h-32 sm:h-36 md:h-40 bg-gradient-to-br from-red-500 to-pink-600 border-2 border-red-400/50 hover:from-red-400 hover:to-pink-500 hover:shadow-xl hover:shadow-red-500/40 transition-all duration-300 flex flex-col items-center justify-center space-y-2 sm:space-y-3 md:space-y-4 text-white font-mono shadow-lg shadow-red-500/30 relative overflow-hidden"
               style={{ imageRendering: "pixelated" }}
             >
@@ -232,8 +235,6 @@ export default function HomePage() {
           </motion.div>
         </motion.div>
       </div>
-
-      <QuizSelectionDialog open={showQuizSelection} onOpenChange={setShowQuizSelection} />
 
       <JoinGameDialog open={showJoinGame} onOpenChange={setShowJoinGame} initialGameCode={gameCodeFromUrl} />
     </>

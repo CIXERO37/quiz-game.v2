@@ -1,18 +1,17 @@
-"use client";
+"use client"
 
-import type React from "react";
-import { useState, useEffect, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { useRouter } from "next/navigation";
-import { Clock } from "lucide-react";
-import { Progress } from "@/components/ui/progress";
-import SpaceDodge from "@/components/space-dodge";
-import { useGameStore } from "@/lib/store";
-import { supabase } from "@/lib/supabase";
-import { fetchQuizzes, DUMMY_QUIZZES } from "@/lib/dummy-data";
-import type { Quiz } from "@/lib/types";
-import Image from "next/image";
-import { toast } from "sonner";
+import type React from "react"
+import { useState, useEffect, useMemo } from "react"
+import { motion, AnimatePresence } from "framer-motion"
+import { useRouter } from "next/navigation"
+import { Clock } from "lucide-react"
+import { Progress } from "@/components/ui/progress"
+import SpaceDodge from "@/components/space-dodge"
+import { useGameStore } from "@/lib/store"
+import { supabase } from "@/lib/supabase"
+import type { Quiz } from "@/lib/types"
+import Image from "next/image"
+import { toast } from "sonner"
 
 function PixelButton({
   children,
@@ -20,14 +19,14 @@ function PixelButton({
   className = "",
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  color?: "blue" | "green" | "red" | "yellow";
+  color?: "blue" | "green" | "red" | "yellow"
 }) {
   const colorStyles = {
     blue: "bg-blue-500 border-blue-700 text-white hover:bg-blue-600 active:bg-blue-700",
     green: "bg-green-500 border-green-700 text-white hover:bg-green-600 active:bg-green-700",
     red: "bg-red-500 border-red-700 text-white hover:bg-red-600 active:bg-red-700",
     yellow: "bg-yellow-400 border-yellow-600 text-black hover:bg-yellow-500 active:bg-yellow-600",
-  };
+  }
 
   return (
     <button
@@ -36,37 +35,29 @@ function PixelButton({
     >
       {children}
     </button>
-  );
+  )
 }
 
 interface PlayContentProps {
-  gameCode: string;
+  gameCode: string
 }
 
 export default function PlayContent({ gameCode }: PlayContentProps) {
-  const router = useRouter();
-  const {
-    currentQuestion,
-    score,
-    correctAnswers,
-    setCurrentQuestion,
-    addScore,
-    incrementCorrectAnswers,
-  } = useGameStore();
+  const router = useRouter()
+  const { currentQuestion, score, correctAnswers, setCurrentQuestion, addScore, incrementCorrectAnswers } =
+    useGameStore()
 
-  const [timeLeft, setTimeLeft] = useState(0);
-  const [selectedChoiceId, setSelectedChoiceId] = useState<number | null>(null);
-  const [isAnswered, setIsAnswered] = useState(false);
-  const [showResult, setShowResult] = useState(false);
-  const [isCorrect, setIsCorrect] = useState(false);
-  const [isQuizStarted, setIsQuizStarted] = useState(false);
-  // const [showCountdown, setShowCountdown] = useState(false); // Di-komentari untuk masa depan
-  // const [countdownValue, setCountdownValue] = useState(10); // Di-komentari untuk masa depan
-  const [shouldNavigate, setShouldNavigate] = useState(false);
-  const [quiz, setQuiz] = useState<Quiz | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [showMiniGame, setShowMiniGame] = useState(false);
-  const [gameSettings, setGameSettings] = useState<{ timeLimit: number; questionCount: number } | null>(null);
+  const [timeLeft, setTimeLeft] = useState(0)
+  const [selectedChoiceId, setSelectedChoiceId] = useState<number | null>(null)
+  const [isAnswered, setIsAnswered] = useState(false)
+  const [showResult, setShowResult] = useState(false)
+  const [isCorrect, setIsCorrect] = useState(false)
+  const [isQuizStarted, setIsQuizStarted] = useState(false)
+  const [shouldNavigate, setShouldNavigate] = useState(false)
+  const [quiz, setQuiz] = useState<Quiz | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [showMiniGame, setShowMiniGame] = useState(false)
+  const [gameSettings, setGameSettings] = useState<{ timeLimit: number; questionCount: number } | null>(null)
 
   useEffect(() => {
     const fetchGame = async () => {
@@ -74,63 +65,62 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
         .from("games")
         .select("id, quiz_id, time_limit, question_count, is_started")
         .eq("code", gameCode.toUpperCase())
-        .single();
+        .single()
 
       if (gameErr || !gameData) {
-        router.replace("/");
-        return;
+        router.replace("/")
+        return
       }
 
       setGameSettings({
         timeLimit: gameData.time_limit,
         questionCount: gameData.question_count,
-      });
-      setTimeLeft(gameData.time_limit);
+      })
+      setTimeLeft(gameData.time_limit)
 
       const { data: quizData } = await supabase
         .from("quizzes")
         .select(`
-    *,
-    questions (
-      id,
-      question,
-      question_image_url,
-      question_image_alt,
-      choices (
-        id,
-        choice_text,
-        choice_image_url,
-        choice_image_alt,
-        is_correct
-      )
-    )
-  `)
+          *,
+          questions (
+            id,
+            question,
+            question_image_url,
+            question_image_alt,
+            choices (
+              id,
+              choice_text,
+              choice_image_url,
+              choice_image_alt,
+              is_correct
+            )
+          )
+        `)
         .eq("id", gameData.quiz_id)
-        .single();
+        .single()
 
       if (!quizData) {
-        toast.error("Quiz not found");
-        router.replace("/");
-        return;
+        toast.error("Quiz not found")
+        router.replace("/")
+        return
       }
 
-      setQuiz(quizData as Quiz);
+      setQuiz(quizData as Quiz)
 
       if (gameData.is_started) {
-        // setShowCountdown(true); // Di-komentari untuk masa depan
-        setIsQuizStarted(true); // Langsung mulai quiz tanpa countdown
+        setIsQuizStarted(true)
       } else {
-        setIsQuizStarted(false);
+        setIsQuizStarted(false)
       }
-      setCurrentQuestion(0);
-      setLoading(false);
-    };
+      setCurrentQuestion(0)
+      setLoading(false)
+    }
 
-    fetchGame();
-  }, [gameCode, router, setCurrentQuestion]);
+    fetchGame()
+  }, [gameCode, router, setCurrentQuestion])
 
   useEffect(() => {
-    if (!gameCode) return;
+    if (!gameCode) return
 
     const channel = supabase
       .channel("game-start")
@@ -139,20 +129,19 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
         { event: "UPDATE", schema: "public", table: "games", filter: `code=eq.${gameCode.toUpperCase()}` },
         (payload) => {
           if (payload.new.is_started && !isQuizStarted) {
-            // setShowCountdown(true); // Di-komentari untuk masa depan
-            setIsQuizStarted(true); // Langsung mulai quiz tanpa countdown
+            setIsQuizStarted(true)
           }
-        }
+        },
       )
-      .subscribe();
+      .subscribe()
 
     return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [gameCode, isQuizStarted]);
+      supabase.removeChannel(channel)
+    }
+  }, [gameCode, isQuizStarted])
 
   useEffect(() => {
-    if (!gameCode) return;
+    if (!gameCode) return
 
     const channel = supabase
       .channel("game-finished")
@@ -161,121 +150,127 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
         { event: "UPDATE", schema: "public", table: "games", filter: `code=eq.${gameCode.toUpperCase()}` },
         (payload) => {
           if (payload.new.finished) {
-            router.replace(`/result/${gameCode}`);
+            router.replace(`/result/${gameCode}`)
           }
-        }
+        },
       )
-      .subscribe();
+      .subscribe()
 
     return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [gameCode, router]);
-
-  /*
-  useEffect(() => {
-    if (!showCountdown) return;
-    const timer = setInterval(() => {
-      setCountdownValue((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          setShowCountdown(false);
-          setIsQuizStarted(true);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [showCountdown]);
-  */
+      supabase.removeChannel(channel)
+    }
+  }, [gameCode, router])
 
   useEffect(() => {
-    if (!isQuizStarted || !gameSettings) return;
+    if (!isQuizStarted || !gameSettings) return
     const timer = setInterval(() => {
       setTimeLeft((t) => {
         if (t <= 1) {
-          clearInterval(timer);
-          setShouldNavigate(true);
-          return 0;
+          clearInterval(timer)
+          setShouldNavigate(true)
+          return 0
         }
-        return t - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [isQuizStarted, gameSettings]);
+        return t - 1
+      })
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [isQuizStarted, gameSettings])
 
   useEffect(() => {
     if (shouldNavigate) {
-      router.replace(`/result/${gameCode}`);
+      router.replace(`/result/${gameCode}`)
     }
-  }, [shouldNavigate, gameCode, router]);
+  }, [shouldNavigate, gameCode, router])
 
   const shuffledQuestions = useMemo(() => {
-    if (!quiz || !gameSettings) return [];
+    if (!quiz || !gameSettings) return []
     return [...quiz.questions]
       .sort(() => Math.random() - 0.5)
       .slice(0, gameSettings.questionCount)
       .map((q) => ({
         ...q,
         choices: [...q.choices].sort(() => Math.random() - 0.5),
-      }));
-  }, [quiz, gameSettings]);
+      }))
+  }, [quiz, gameSettings])
 
-  const question = shuffledQuestions[currentQuestion];
+  const question = shuffledQuestions[currentQuestion]
 
-  const getChoiceLabel = (index: number) => String.fromCharCode(65 + index);
+  const getChoiceLabel = (index: number) => String.fromCharCode(65 + index)
 
   const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  };
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
+  }
 
-  const handleAnswerSelect = async (choice: { id: number; choice_text: string | null; is_correct: boolean }) => {
-    if (isAnswered || !question) return;
+  const handleAnswerSelect = async (choice: {
+    id: number
+    choice_text: string | null
+    is_correct: boolean
+  }) => {
+    if (isAnswered || !question) return
 
-    setSelectedChoiceId(choice.id);
-    setIsAnswered(true);
-    const correct = choice.is_correct;
-    setIsCorrect(correct);
+    setSelectedChoiceId(choice.id)
+    setIsAnswered(true)
+    const correct = choice.is_correct
+    setIsCorrect(correct)
 
+    let earnedPoints = 0
     if (correct) {
-      addScore(10);
-      incrementCorrectAnswers();
+      earnedPoints = 10
+      addScore(earnedPoints)
+      incrementCorrectAnswers()
     }
 
+    // 🔽 Simpan jawaban ke Supabase
     await supabase.from("player_answers").insert({
       game_id: useGameStore.getState().gameId,
       player_id: useGameStore.getState().playerId,
       question_index: currentQuestion,
-      points_earned: correct ? 10 : 0,
-    });
+      points_earned: earnedPoints,
+    })
 
-    setShowResult(true);
-    setTimeout(() => {
-      setShowResult(false);
-      setIsAnswered(false);
-      setSelectedChoiceId(null);
-      if (correct && (correctAnswers + 1) % 3 === 0) {
-        setShowMiniGame(true);
-      } else if (currentQuestion + 1 < gameSettings!.questionCount) {
-        setCurrentQuestion(currentQuestion + 1);
-      } else {
-        setShouldNavigate(true);
+    // 🔽 Update total skor pemain di Supabase
+    if (correct) {
+      const { data: player } = await supabase
+        .from("players")
+        .select("score")
+        .eq("id", useGameStore.getState().playerId)
+        .single()
+
+      if (player) {
+        const newScore = (player.score || 0) + earnedPoints
+        await supabase
+          .from("players")
+          .update({ score: newScore })
+          .eq("id", useGameStore.getState().playerId)
       }
-    }, 2000);
-  };
+    }
+
+    setShowResult(true)
+    setTimeout(() => {
+      setShowResult(false)
+      setIsAnswered(false)
+      setSelectedChoiceId(null)
+      if (correct && (correctAnswers + 1) % 3 === 0) {
+        setShowMiniGame(true)
+      } else if (currentQuestion + 1 < gameSettings!.questionCount) {
+        setCurrentQuestion(currentQuestion + 1)
+      } else {
+        setShouldNavigate(true)
+      }
+    }, 2000)
+  }
 
   const handleMiniGameComplete = (score: number) => {
-    addScore(score);
-    setShowMiniGame(false);
+    addScore(score)
+    setShowMiniGame(false)
     if (currentQuestion + 1 < gameSettings!.questionCount) {
-      setCurrentQuestion(currentQuestion + 1);
+      setCurrentQuestion(currentQuestion + 1)
     } else {
-      setShouldNavigate(true);
+      setShouldNavigate(true)
     }
-  };
+  }
 
   if (loading || !gameSettings)
     return (
@@ -287,7 +282,7 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
           </div>
         </div>
       </>
-    );
+    )
 
   if (!quiz || !question)
     return (
@@ -302,36 +297,7 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
           </div>
         </div>
       </>
-    );
-
-  /*
-  if (showCountdown)
-    return (
-      <>
-        <Background />
-        <div className="relative z-10 min-h-screen flex items-center justify-center font-mono text-white">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.5 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-black/80 border-4 border-white p-12 rounded-lg text-center"
-          >
-            <p className="text-3xl mb-6 font-bold">Quiz Starting!</p>
-            <motion.div
-              key={countdownValue}
-              initial={{ scale: 1.5, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.5, type: "spring" }}
-              className="text-9xl font-bold text-yellow-300"
-              style={{ textShadow: "4px 4px 0px #000" }}
-            >
-              {countdownValue}
-            </motion.div>
-            <p className="text-lg mt-4 opacity-80">Get ready! Quiz starts in {countdownValue} seconds...</p>
-          </motion.div>
-        </div>
-      </>
-    );
-  */
+    )
 
   if (!isQuizStarted)
     return (
@@ -343,7 +309,7 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
           </div>
         </div>
       </>
-    );
+    )
 
   return (
     <>
@@ -394,13 +360,13 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
               className={`grid ${question.choices.length === 3 ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2"} gap-4`}
             >
               {question.choices.map((choice, index) => {
-                const isSelected = selectedChoiceId === choice.id;
-                const isRight = choice.is_correct;
-                let buttonColor: "blue" | "green" | "red" = "blue";
+                const isSelected = selectedChoiceId === choice.id
+                const isRight = choice.is_correct
+                let buttonColor: "blue" | "green" | "red" = "blue"
 
                 if (isAnswered) {
-                  if (isRight) buttonColor = "green";
-                  else if (isSelected && !isRight) buttonColor = "red";
+                  if (isRight) buttonColor = "green"
+                  else if (isSelected && !isRight) buttonColor = "red"
                 }
 
                 return (
@@ -431,7 +397,7 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
                       </div>
                     </div>
                   </PixelButton>
-                );
+                )
               })}
             </div>
 
@@ -453,17 +419,17 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
         </div>
       </div>
     </>
-  );
+  )
 }
 
 function Background() {
   return (
     <div className="fixed inset-0 z-0 overflow-hidden">
-      <div className="absolute inset-0 bg-[url('/images/space_bg.jpg')]" style={{ backgroundSize: "cover", imageRendering: "pixelated" }} />
-      {/* <div className="absolute bottom-0 w-full h-1/3 bg-[#8B4513]" style={{ imageRendering: "pixelated" }}>
-        <div className="absolute top-0 w-full h-6 bg-[#228B22]" style={{ imageRendering: "pixelated" }} />
-      </div>
-      <div className="absolute inset-0 bg-black/40" /> */}
+      <div
+        className="absolute inset-0 bg-[url('/images/space_bg.jpg')]"
+        style={{ backgroundSize: "cover", imageRendering: "pixelated" }}
+      />
+      <div className="absolute inset-0 bg-black/40" />
     </div>
-  );
+  )
 }
