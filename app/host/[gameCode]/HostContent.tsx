@@ -62,6 +62,9 @@ export default function HostContent({ gameCode }: HostContentProps) {
   const [showExitModal, setShowExitModal] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
 
+  const [showCountdown, setShowCountdown] = useState(false)
+  const [countdownValue, setCountdownValue] = useState(10)
+
   /* ------------------ STORE ------------------ */
   const { setGameCode, setQuizId, setIsHost, gameSettings, setGameSettings } = useGameStore()
 
@@ -92,7 +95,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
     const fetchData = async () => {
       const { data: gameData, error: gameErr } = await supabase
         .from("games")
-        .select("id, quiz_id, time_limit, question_count, is_started, finished")
+        .select("id, quiz_id, time_limit, question_count, is_started, finished, countdown_start_ms")
         .eq("code", gameCode.toUpperCase())
         .single()
 
@@ -109,6 +112,15 @@ export default function HostContent({ gameCode }: HostContentProps) {
       setIsHost(true)
       setQuizStarted(gameData.is_started)
       setShowLeaderboard(gameData.finished)
+
+      // Sync countdown if it was already started
+      if (gameData.countdown_start_ms) {
+        const serverStart = gameData.countdown_start_ms as number
+        const elapsed = Math.floor((Date.now() - serverStart) / 1000)
+        const remaining = Math.max(0, 10 - elapsed)
+        setCountdownValue(remaining)
+        setShowCountdown(remaining > 0)
+      }
 
       const quizzes = await fetchQuizzes()
       const found = quizzes.find((q) => q.id === gameData.quiz_id)
@@ -207,6 +219,16 @@ export default function HostContent({ gameCode }: HostContentProps) {
         { event: "UPDATE", schema: "public", table: "games", filter: `id=eq.${gameId}` },
         (payload) => {
           console.log("[v0] Game status update:", payload.new)
+          
+          // Handle countdown start
+          if (payload.new.countdown_start_ms) {
+            const serverStart = payload.new.countdown_start_ms as number
+            const elapsed = Math.floor((Date.now() - serverStart) / 1000)
+            const remaining = Math.max(0, 10 - elapsed)
+            setCountdownValue(remaining)
+            setShowCountdown(remaining > 0)
+          }
+
           if (payload.new.finished) {
             setQuizStarted(false)
             setShowLeaderboard(true)
@@ -214,6 +236,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
           }
           if (payload.new.is_started) {
             setQuizStarted(true)
+            setShowCountdown(false)
           }
         },
       )
@@ -302,6 +325,24 @@ export default function HostContent({ gameCode }: HostContentProps) {
     return () => clearInterval(timer)
   }, [isTimerActive, quizTimeLeft])
 
+  useEffect(() => {
+    if (!showCountdown) return
+
+    const timer = setInterval(() => {
+      setCountdownValue((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer)
+          // Start the actual quiz after countdown
+          handleActualQuizStart()
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [showCountdown])
+
   /* ------------------ HANDLERS ------------------ */
   const handleCopyCode = () => {
     navigator.clipboard.writeText(gameCode)
@@ -315,14 +356,30 @@ export default function HostContent({ gameCode }: HostContentProps) {
       return
     }
     setIsStarting(true)
+
+    // Broadcast countdown start time to all clients
+    const countdownStart = Date.now()
+    await supabase
+      .from("games")
+      .update({ countdown_start_ms: countdownStart })
+      .eq("id", gameId)
+
+    // Local countdown
+    setShowCountdown(true)
+    setCountdownValue(10)
+    setIsStarting(false)
+    toast.success("🚀 Starting countdown!")
+  }
+
+  const handleActualQuizStart = async () => {
     try {
       await supabase.from("games").update({ is_started: true }).eq("id", gameId)
       setQuizStarted(true)
+      setShowCountdown(false)
       toast.success("🚀 Quiz started!")
     } catch {
       toast.error("❌ Failed to start quiz")
-    } finally {
-      setIsStarting(false)
+      setShowCountdown(false)
     }
   }
 
@@ -492,6 +549,65 @@ export default function HostContent({ gameCode }: HostContentProps) {
         </div>
       </div>
     )
+
+  if (showCountdown) {
+    return (
+      <>
+        <Toaster
+          position="top-center"
+          toastOptions={{
+            style: {
+              fontFamily: "Press Start 2P",
+              fontSize: "12px",
+              background: "#222",
+              color: "#fff",
+              border: "2px solid #fff",
+            },
+          }}
+        />
+
+        {/* Background with animated galaxy theme */}
+        <div className="fixed inset-0 z-0 overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-b from-gray-900 via-indigo-950 to-black" />
+          <div className="absolute inset-0">
+            <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl animate-pulse" />
+            <div
+              className="absolute top-3/4 right-1/4 w-80 h-80 bg-indigo-600/8 rounded-full blur-3xl animate-pulse"
+              style={{ animationDelay: "1s" }}
+            />
+            <div
+              className="absolute bottom-1/4 left-1/2 w-64 h-64 bg-violet-600/6 rounded-full blur-3xl animate-pulse"
+              style={{ animationDelay: "2s" }}
+            />
+          </div>
+          <AnimatedStars />
+          <div className="absolute inset-0 bg-black/40" />
+        </div>
+
+        <div className="relative z-10 min-h-screen flex items-center justify-center font-mono text-white">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-black/80 border-4 border-white p-12 rounded-lg text-center backdrop-blur-sm"
+          >
+            <p className="text-3xl mb-6 font-bold">Quiz Starting!</p>
+            <motion.div
+              key={countdownValue}
+              initial={{ scale: 1.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.5, type: "spring" }}
+              className="text-9xl font-bold text-yellow-300"
+              style={{ textShadow: "4px 4px 0px #000" }}
+            >
+              {countdownValue}
+            </motion.div>
+            <p className="text-lg mt-4 opacity-80">Quiz begins in {countdownValue} seconds...</p>
+            <p className="text-sm mt-2 opacity-60">Players are being notified...</p>
+          </motion.div>
+        </div>
+      </>
+    )
+  }
 
   return (
     <>
@@ -736,7 +852,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
                             <div className="text-right">
                               <div className="text-2xl font-bold text-white mb-1">
                                 {player.totalQuestions > 0
-                                  ? Math.round(((Math.max(0, player.currentQuestion - 1)) / player.totalQuestions) * 100)
+                                  ? Math.round((Math.max(0, player.currentQuestion - 1) / player.totalQuestions) * 100)
                                   : 0}
                                 %
                               </div>
@@ -755,7 +871,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
                               <motion.div
                                 initial={{ width: 0 }}
                                 animate={{
-                                  width: `${player.totalQuestions > 0 ? Math.min(100, Math.max(0, ((Math.max(0, player.currentQuestion - 1)) / player.totalQuestions) * 100)) : 0}%`,
+                                  width: `${player.totalQuestions > 0 ? Math.min(100, Math.max(0, (Math.max(0, player.currentQuestion - 1) / player.totalQuestions) * 100)) : 0}%`,
                                 }}
                                 transition={{ duration: 0.8, ease: "easeOut" }}
                                 className={`h-full rounded-full ${

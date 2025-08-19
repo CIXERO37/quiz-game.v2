@@ -51,7 +51,7 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
     const fetchGame = async () => {
       const { data, error } = await supabase
         .from("games")
-        .select("id, is_started, quiz_id")
+        .select("id, is_started, quiz_id, countdown_start_ms")
         .eq("code", gameCode.toUpperCase())
         .single();
 
@@ -63,9 +63,19 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
 
       setGameId(data.id);
 
+      // If already started, redirect immediately
       if (data.is_started) {
         router.replace(`/play/${gameCode}`);
         return;
+      }
+
+      // Sync countdown if already running
+      if (data.countdown_start_ms) {
+        const serverStart = data.countdown_start_ms as number;
+        const elapsed = Math.floor((Date.now() - serverStart) / 1000);
+        const remaining = Math.max(0, 10 - elapsed);
+        setCountdownValue(remaining);
+        setShowCountdown(remaining > 0);
       }
 
       setLoading(false);
@@ -77,31 +87,53 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
   useEffect(() => {
     if (loading || !gameId) return;
 
+    // Listen for countdown and start events
     const channel = supabase
       .channel("game-status")
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "games", filter: `code=eq.${gameCode.toUpperCase()}` },
         (payload) => {
+          // Handle countdown start
+          if (payload.new.countdown_start_ms) {
+            const serverStart = payload.new.countdown_start_ms as number;
+            const elapsed = Math.floor((Date.now() - serverStart) / 1000);
+            const remaining = Math.max(0, 10 - elapsed);
+            setCountdownValue(remaining);
+            setShowCountdown(remaining > 0);
+          }
+
+          // Handle quiz start
           if (payload.new.is_started) {
-            setShowCountdown(true);
+            setShouldRedirect(true);
           }
         }
       )
       .subscribe();
 
+    // Fallback polling every 5 seconds
     const pollingInterval = setInterval(async () => {
       const { data } = await supabase
         .from("games")
-        .select("is_started")
+        .select("is_started, countdown_start_ms")
         .eq("code", gameCode.toUpperCase())
         .single();
+      
+      if (data?.countdown_start_ms) {
+        const serverStart = data.countdown_start_ms as number;
+        const elapsed = Math.floor((Date.now() - serverStart) / 1000);
+        const remaining = Math.max(0, 10 - elapsed);
+        setCountdownValue(remaining);
+        setShowCountdown(remaining > 0);
+      }
+      
       if (data?.is_started) {
-        setShowCountdown(true);
+        setShouldRedirect(true);
         clearInterval(pollingInterval);
       }
-    }, 5000);
+    }, 2000); // Check every 2 seconds for faster sync
 
+    // Presence tracking
     const presenceChannel = getPresenceChannel();
     presenceChannel
       .on("presence", { event: "sync" }, () => {})
