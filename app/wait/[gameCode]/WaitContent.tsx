@@ -13,6 +13,17 @@ interface WaitContentProps {
   gameCode: string;
 }
 
+function Background() {
+  return (
+    <div className="fixed inset-0 z-0 overflow-hidden">
+      <div
+        className="absolute inset-0 bg-[url('/images/space_bg.jpg')]"
+        style={{ backgroundSize: "cover", imageRendering: "pixelated" }}
+      />
+    </div>
+  );
+}
+
 export default function WaitContent({ gameCode }: WaitContentProps) {
   const router = useRouter();
   const { clearGame } = useGameStore();
@@ -23,7 +34,7 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
   const [gameId, setGameId] = useState<string>("");
   const [showCountdown, setShowCountdown] = useState(false);
   const [countdownValue, setCountdownValue] = useState(10);
-  const [shouldRedirect, setShouldRedirect] = useState(false); // Flag untuk trigger redirect
+  const [shouldRedirect, setShouldRedirect] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem("player");
@@ -77,11 +88,7 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
           }
         }
       )
-      .subscribe((status) => {
-        if (status === "CLOSED" || status === "CHANNEL_ERROR") {
-          toast.error("Realtime connection failed. Using polling...");
-        }
-      });
+      .subscribe();
 
     const pollingInterval = setInterval(async () => {
       const { data } = await supabase
@@ -115,7 +122,6 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
     };
   }, [loading, gameId, gameCode, playerName, playerAvatar]);
 
-  // Logika countdown dengan flag redirect
   useEffect(() => {
     if (!showCountdown) return;
 
@@ -123,7 +129,7 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
       setCountdownValue((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          setShouldRedirect(true); // Set flag untuk redirect
+          setShouldRedirect(true);
           return 0;
         }
         return prev - 1;
@@ -133,7 +139,6 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
     return () => clearInterval(timer);
   }, [showCountdown]);
 
-  // Handle redirect setelah countdown selesai
   useEffect(() => {
     if (shouldRedirect) {
       router.replace(`/play/${gameCode}`);
@@ -153,45 +158,46 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
 
   if (loading)
     return (
-      <div className="fixed inset-0 bg-[#87CEEB] flex items-center justify-center font-mono text-white">
-        <p>Loading...</p>
-      </div>
+      <>
+        <Background />
+        <div className="relative z-10 min-h-screen flex items-center justify-center font-mono text-white">
+          <div className="bg-black/70 border-4 border-white p-6 rounded-lg">
+            <p>Loading...</p>
+          </div>
+        </div>
+      </>
     );
 
-  if (showCountdown) {
+  if (showCountdown)
     return (
-      <div className="fixed inset-0 bg-[#87CEEB] flex items-center justify-center font-mono text-white">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.5 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="bg-black/80 border-4 border-white p-12 rounded-lg text-center"
-        >
-          <p className="text-3xl mb-6 font-bold">Game Starting!</p>
+      <>
+        <Background />
+        <div className="relative z-10 min-h-screen flex items-center justify-center font-mono text-white">
           <motion.div
-            key={countdownValue}
-            initial={{ scale: 1.5, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.5, type: "spring" }}
-            className="text-9xl font-bold text-yellow-300"
-            style={{ textShadow: "4px 4px 0px #000" }}
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-black/80 border-4 border-white p-12 rounded-lg text-center"
           >
-            {countdownValue}
+            <p className="text-3xl mb-6 font-bold">Game Starting!</p>
+            <motion.div
+              key={countdownValue}
+              initial={{ scale: 1.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.5, type: "spring" }}
+              className="text-9xl font-bold text-yellow-300"
+              style={{ textShadow: "4px 4px 0px #000" }}
+            >
+              {countdownValue}
+            </motion.div>
+            <p className="text-lg mt-4 opacity-80">Get ready in {countdownValue} seconds...</p>
           </motion.div>
-          <p className="text-lg mt-4 opacity-80">Get ready in {countdownValue} seconds...</p>
-        </motion.div>
-      </div>
+        </div>
+      </>
     );
-  }
 
   return (
     <>
-      <div className="fixed inset-0 z-0 overflow-hidden">
-        <div className="absolute inset-0 bg-[#87CEEB]" style={{ imageRendering: "pixelated" }} />
-        <div className="absolute bottom-0 w-full h-1/3 bg-[#8B4513]" style={{ imageRendering: "pixelated" }}>
-          <div className="absolute top-0 w-full h-6 bg-[#228B22]" style={{ imageRendering: "pixelated" }} />
-        </div>
-      </div>
-
+      <Background />
       <div className="relative z-10 flex items-center justify-center min-h-screen font-mono text-white">
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
@@ -210,7 +216,10 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
           <p className="text-lg mb-2 drop-shadow-[1px_1px_0px_#000]">{playerName}</p>
           <p className="text-sm text-white/70 mb-6">
             Waiting to start
-            <motion.span animate={{ opacity: [0, 1, 0] }} transition={{ duration: 1, repeat: Infinity }}>
+            <motion.span
+              animate={{ opacity: [0, 1, 0] }}
+              transition={{ duration: 1, repeat: Infinity }}
+            >
               ...
             </motion.span>
           </p>
