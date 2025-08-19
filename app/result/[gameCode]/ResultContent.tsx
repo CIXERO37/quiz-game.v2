@@ -17,6 +17,17 @@ interface PlayerResult {
   position: number;
 }
 
+function Background() {
+  return (
+    <div className="fixed inset-0 z-0 overflow-hidden">
+      <div
+        className="absolute inset-0 bg-[url('/images/space_bg.jpg')]"
+        style={{ backgroundSize: "cover", imageRendering: "pixelated" }}
+      />
+    </div>
+  );
+}
+
 export default function ResultContent({ gameCode }: { gameCode: string }) {
   const router = useRouter();
   const playerId = useGameStore.getState().playerId;
@@ -70,7 +81,6 @@ export default function ResultContent({ gameCode }: { gameCode: string }) {
     fetchResults();
   }, [gameCode, playerId, score, router]);
 
-  // Pindahkan logika navigasi ke useEffect
   useEffect(() => {
     if (!isLoading) {
       const userResult = playerResults.find((p) => p.id === playerId);
@@ -80,52 +90,79 @@ export default function ResultContent({ gameCode }: { gameCode: string }) {
     }
   }, [isLoading, playerResults, isHost, playerId, router]);
 
-  if (isLoading) {
+  if (isLoading)
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black text-white font-mono">
-        Loading...
-      </div>
+      <>
+        <Background />
+        <div className="relative z-10 min-h-screen flex items-center justify-center bg-black text-white font-mono">
+          Loading...
+        </div>
+      </>
     );
-  }
 
   return isHost ? (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800 text-white p-6">
-      <h1 className="text-4xl font-bold text-center mb-6">🏆 Final Results</h1>
-      <div className="max-w-2xl mx-auto space-y-4">
-        {playerResults.map((p) => (
-          <div key={p.id} className="flex items-center justify-between bg-slate-700 p-4 rounded-lg">
-            <div className="flex items-center gap-4">
-              <span className="text-2xl font-bold">{p.position}.</span>
-              <img src={p.avatar} alt={p.name} className="w-10 h-10 rounded-full object-cover" />
-              <span>{p.name}</span>
+    <>
+      <Background />
+      <div className="relative z-10 min-h-screen bg-gradient-to-b from-slate-900/80 to-slate-800/80 text-white p-6">
+        <h1 className="text-4xl font-bold text-center mb-6">🏆 Final Results</h1>
+        <div className="max-w-2xl mx-auto space-y-4">
+          {playerResults.map((p) => (
+            <div
+              key={p.id}
+              className="flex items-center justify-between bg-slate-700/70 p-4 rounded-lg"
+            >
+              <div className="flex items-center gap-4">
+                <span className="text-2xl font-bold">{p.position}.</span>
+                <img src={p.avatar} alt={p.name} className="w-10 h-10 rounded-full object-cover" />
+                <span>{p.name}</span>
+              </div>
+              <span className="text-xl font-bold text-yellow-400">{p.score}</span>
             </div>
-            <span className="text-xl font-bold text-yellow-400">{p.score}</span>
-          </div>
-        ))}
-      </div>
-      <div className="text-center mt-6">
-        <Button onClick={() => { resetGame(); router.push("/"); }} className="bg-purple-600 hover:bg-purple-700">
-          Back to Dashboard
-        </Button>
-      </div>
-    </div>
-  ) : (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-900 to-slate-800 text-white p-4">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="max-w-md w-full"
-      >
-        <div className="bg-slate-800/80 backdrop-blur-lg border border-slate-700 rounded-lg p-6 text-center space-y-4">
-          <img src={playerAvatar || "/default-avatar.png"} alt={playerName} className="w-24 h-24 rounded-full mx-auto object-cover border-4 border-purple-500" />
-          <h1 className="text-2xl font-bold">{playerName || "Unknown Player"}</h1>
-          <p className="text-3xl font-bold text-purple-400">{score || 0} pts</p>
-          <p className="text-xl">Position #{userPosition || "N/A"}</p>
-          <Button onClick={() => { resetGame(); router.push("/"); }} className="w-full bg-purple-600 hover:bg-purple-700">
-            Play Again
+          ))}
+        </div>
+        <div className="text-center mt-6">
+          <Button
+            onClick={() => {
+              resetGame();
+              router.push("/");
+            }}
+            className="bg-purple-600 hover:bg-purple-700"
+          >
+            Back to Dashboard
           </Button>
         </div>
-      </motion.div>
-    </div>
+      </div>
+    </>
+  ) : (
+    <>
+      <Background />
+      <div className="relative z-10 min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-900/80 to-slate-800/80 text-white p-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-md w-full"
+        >
+          <div className="bg-slate-800/80 backdrop-blur-lg border border-slate-700 rounded-lg p-6 text-center space-y-4">
+            <img
+              src={playerAvatar || "/default-avatar.png"}
+              alt={playerName}
+              className="w-24 h-24 rounded-full mx-auto object-cover border-4 border-purple-500"
+            />
+            <h1 className="text-2xl font-bold">{playerName || "Unknown Player"}</h1>
+            <p className="text-3xl font-bold text-purple-400">{score || 0} pts</p>
+            <p className="text-xl">Position #{userPosition || "N/A"}</p>
+            <Button
+              onClick={() => {
+                resetGame();
+                router.push("/");
+              }}
+              className="w-full bg-purple-600 hover:bg-purple-700"
+            >
+              Play Again
+            </Button>
+          </div>
+        </motion.div>
+      </div>
+    </>
   );
 }
