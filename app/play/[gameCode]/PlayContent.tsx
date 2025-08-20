@@ -1,3 +1,4 @@
+
 "use client"
 
 import type React from "react"
@@ -44,7 +45,7 @@ interface PlayContentProps {
 
 export default function PlayContent({ gameCode }: PlayContentProps) {
   const router = useRouter()
-  const { currentQuestion, score, correctAnswers, setCurrentQuestion, addScore, incrementCorrectAnswers } =
+  const { currentQuestion, score, correctAnswers, setCurrentQuestion, addScore, incrementCorrectAnswers, setGameId, gameId, playerId } =
     useGameStore()
 
   const [timeLeft, setTimeLeft] = useState(0)
@@ -62,6 +63,13 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
 
   useEffect(() => {
     const fetchGame = async () => {
+      if (!gameCode || typeof gameCode !== "string") {
+        console.error("Invalid game code:", gameCode);
+        toast.error("Invalid game code!");
+        router.replace("/");
+        return;
+      }
+
       const { data: gameData, error: gameErr } = await supabase
         .from("games")
         .select("id, quiz_id, time_limit, question_count, is_started")
@@ -69,17 +77,20 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
         .single()
 
       if (gameErr || !gameData) {
-        router.replace("/")
-        return
+        console.error("Game fetch error:", gameErr?.message, gameErr?.details);
+        toast.error("Game not found!");
+        router.replace("/");
+        return;
       }
 
+      setGameId(gameData.id); // Set gameId ke store
       setGameSettings({
         timeLimit: gameData.time_limit,
         questionCount: gameData.question_count,
-      })
-      setTimeLeft(gameData.time_limit)
+      });
+      setTimeLeft(gameData.time_limit);
 
-      const { data: quizData } = await supabase
+      const { data: quizData, error: quizErr } = await supabase
         .from("quizzes")
         .select(`
           *,
@@ -100,38 +111,39 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
         .eq("id", gameData.quiz_id)
         .single()
 
-      if (!quizData) {
-        toast.error("Quiz not found")
-        router.replace("/")
-        return
+      if (quizErr || !quizData) {
+        console.error("Quiz fetch error:", quizErr?.message, quizErr?.details);
+        toast.error("Quiz not found!");
+        router.replace("/");
+        return;
       }
 
-      setQuiz(quizData as Quiz)
+      setQuiz(quizData as Quiz);
 
-      // 🔽 Langsung shuffle & simpan semua soal
+      // Shuffle dan simpan semua soal
       const shuffled = [...quizData.questions]
         .sort(() => Math.random() - 0.5)
         .slice(0, gameData.question_count)
         .map((q: any) => ({
           ...q,
           choices: [...q.choices].sort(() => Math.random() - 0.5),
-        }))
-      setAllQuestions(shuffled)
+        }));
+      setAllQuestions(shuffled);
 
       if (gameData.is_started) {
-        setIsQuizStarted(true)
+        setIsQuizStarted(true);
       } else {
-        setIsQuizStarted(false)
+        setIsQuizStarted(false);
       }
-      setCurrentQuestion(0)
-      setLoading(false)
+      setCurrentQuestion(0);
+      setLoading(false);
     }
 
-    fetchGame()
-  }, [gameCode, router, setCurrentQuestion])
+    fetchGame();
+  }, [gameCode, router, setCurrentQuestion, setGameId]);
 
   useEffect(() => {
-    if (!gameCode) return
+    if (!gameCode) return;
 
     const channel = supabase
       .channel("game-start")
@@ -140,19 +152,19 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
         { event: "UPDATE", schema: "public", table: "games", filter: `code=eq.${gameCode.toUpperCase()}` },
         (payload) => {
           if (payload.new.is_started && !isQuizStarted) {
-            setIsQuizStarted(true)
+            setIsQuizStarted(true);
           }
         },
       )
-      .subscribe()
+      .subscribe();
 
     return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [gameCode, isQuizStarted])
+      supabase.removeChannel(channel);
+    };
+  }, [gameCode, isQuizStarted]);
 
   useEffect(() => {
-    if (!gameCode) return
+    if (!gameCode) return;
 
     const channel = supabase
       .channel("game-finished")
@@ -161,176 +173,252 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
         { event: "UPDATE", schema: "public", table: "games", filter: `code=eq.${gameCode.toUpperCase()}` },
         (payload) => {
           if (payload.new.finished) {
-            router.replace(`/result/${gameCode}`)
+            router.replace(`/result/${gameCode}`);
           }
         },
       )
-      .subscribe()
+      .subscribe();
 
     return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [gameCode, router])
+      supabase.removeChannel(channel);
+    };
+  }, [gameCode, router]);
 
-  // ✅ Timer sinkron dengan server
+  // Timer sinkron dengan server
   useEffect(() => {
-    if (!isQuizStarted || !gameSettings) return
+    if (!isQuizStarted || !gameSettings) return;
 
-    let unsub = () => {}
-    ;(async () => {
-      const { data } = await supabase
+    let unsub = () => {};
+    (async () => {
+      const { data, error } = await supabase
         .from("games")
         .select("quiz_start_time, time_limit")
         .eq("code", gameCode.toUpperCase())
-        .single()
+        .single();
 
-      if (!data?.quiz_start_time) return
-
-      const start = new Date(data.quiz_start_time).getTime()
-      const limitMs = data.time_limit * 1000
-
-      const tick = () => {
-        const remain = Math.max(0, start + limitMs - Date.now())
-        setTimeLeft(Math.floor(remain / 1000))
-        if (remain <= 0) {
-          setShouldNavigate(true)
-        }
+      if (error || !data?.quiz_start_time) {
+        console.error("Timer fetch error:", error?.message, error?.details);
+        return;
       }
 
-      tick()
-      const iv = setInterval(tick, 1000)
-      unsub = () => clearInterval(iv)
-    })()
+      const start = new Date(data.quiz_start_time).getTime();
+      const limitMs = data.time_limit * 1000;
 
-    return unsub
-  }, [isQuizStarted, gameSettings, gameCode])
+      const tick = () => {
+        const remain = Math.max(0, start + limitMs - Date.now());
+        setTimeLeft(Math.floor(remain / 1000));
+        if (remain <= 0) {
+          setShouldNavigate(true);
+        }
+      };
 
-  const question = allQuestions[currentQuestion]
+      tick();
+      const iv = setInterval(tick, 1000);
+      unsub = () => clearInterval(iv);
+    })();
 
-  const getChoiceLabel = (index: number) => String.fromCharCode(65 + index)
+    return unsub;
+  }, [isQuizStarted, gameSettings, gameCode]);
+
+  const question = allQuestions[currentQuestion];
+
+  const getChoiceLabel = (index: number) => String.fromCharCode(65 + index);
 
   const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
-  }
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
 
   const handleAnswerSelect = async (choice: {
-    id: number
-    choice_text: string | null
-    is_correct: boolean
+    id: number;
+    choice_text: string | null;
+    is_correct: boolean;
   }) => {
-    if (isAnswered || !question) return
+    if (isAnswered || !question) return;
 
-    setSelectedChoiceId(choice.id)
-    setIsAnswered(true)
-    const correct = choice.is_correct
-    setIsCorrect(correct)
+    setSelectedChoiceId(choice.id);
+    setIsAnswered(true);
+    const correct = choice.is_correct;
+    setIsCorrect(correct);
 
-    let earnedPoints = 0
+    let earnedPoints = 0;
     if (correct) {
-      earnedPoints = 10
-      addScore(earnedPoints)
-      incrementCorrectAnswers()
+      earnedPoints = 10;
+      addScore(earnedPoints);
+      incrementCorrectAnswers();
     }
 
     try {
-      // First, insert the answer
-      await supabase.from("player_answers").insert({
-        game_id: useGameStore.getState().gameId,
-        player_id: useGameStore.getState().playerId,
+      // Validasi ID
+      if (!gameId || !playerId) {
+        console.error("Missing gameId or playerId:", { gameId, playerId });
+        toast.error("Invalid game or player data!");
+        router.replace("/");
+        return;
+      }
+
+      // Debug: Log data yang akan diinsert
+      const dataToInsert = {
+        game_id: gameId,
+        player_id: playerId,
         question_index: currentQuestion,
         points_earned: earnedPoints,
-      })
+        is_correct: correct,
+      };
+      console.log("Inserting to player_answers:", JSON.stringify(dataToInsert, null, 2));
 
-      // Then, update player score if correct
+      // Insert ke player_answers
+      const { error: insertError } = await supabase.from("player_answers").insert(dataToInsert);
+      if (insertError) {
+        console.error("Supabase insert error:", insertError.message, insertError.details, insertError.hint);
+        throw insertError;
+      }
+
+      // Update player score jika jawaban benar
       if (correct) {
-        const { data: player } = await supabase
+        const { data: player, error: playerError } = await supabase
           .from("players")
           .select("score")
-          .eq("id", useGameStore.getState().playerId)
-          .single()
+          .eq("id", playerId)
+          .single();
+
+        if (playerError) {
+          console.error("Player fetch error:", playerError.message, playerError.details);
+          throw playerError;
+        }
 
         if (player) {
-          const newScore = (player.score || 0) + earnedPoints
-          await supabase.from("players").update({ score: newScore }).eq("id", useGameStore.getState().playerId)
+          const newScore = (player.score || 0) + earnedPoints;
+          const { error: updateError } = await supabase
+            .from("players")
+            .update({ score: newScore })
+            .eq("id", playerId);
+
+          if (updateError) {
+            console.error("Player update error:", updateError.message, updateError.details);
+            throw updateError;
+          }
         }
       }
 
+      // Cek jika semua soal selesai
       if (currentQuestion + 1 >= gameSettings!.questionCount) {
-        // Mark this player as finished and trigger game completion
-        const { data: gameData } = await supabase.from("games").select("id").eq("code", gameCode.toUpperCase()).single()
+        const { data: gameData, error: gameError } = await supabase
+          .from("games")
+          .select("id")
+          .eq("code", gameCode.toUpperCase())
+          .single();
+
+        if (gameError) {
+          console.error("Game fetch error:", gameError.message, gameError.details);
+          throw gameError;
+        }
 
         if (gameData) {
-          // End the quiz for all players
-          await supabase
+          const { error: updateError } = await supabase
             .from("games")
             .update({
               finished: true,
               is_started: false,
             })
-            .eq("id", gameData.id)
+            .eq("id", gameData.id);
+
+          if (updateError) {
+            console.error("Game update error:", updateError.message, updateError.details);
+            throw updateError;
+          }
         }
       }
-    } catch (error) {
-      console.error("Error updating answer and score:", error)
-      toast.error("Failed to save answer. Please try again.")
-      return
+    } catch (error: any) {
+      console.error("Error updating answer and score:", error.message, error.details, error.hint);
+      toast.error(`Failed to save answer: ${error.message}`);
+      return;
     }
 
-    setShowResult(true)
+    setShowResult(true);
 
     setTimeout(
       () => {
-        setShowResult(false)
-        setIsAnswered(false)
-        setSelectedChoiceId(null)
+        setShowResult(false);
+        setIsAnswered(false);
+        setSelectedChoiceId(null);
         if (correct && (correctAnswers + 1) % 3 === 0) {
-          setShowMiniGame(true)
+          setShowMiniGame(true);
         } else if (currentQuestion + 1 < gameSettings!.questionCount) {
-          setCurrentQuestion(currentQuestion + 1)
+          setCurrentQuestion(currentQuestion + 1);
         } else {
-          router.replace(`/result/${gameCode}`)
+          router.replace(`/result/${gameCode}`);
         }
       },
       correct ? 1500 : 2500,
-    ) // Slightly longer delay to ensure host sees the update
-  }
+    );
+  };
 
   const handleMiniGameComplete = async (score: number) => {
     try {
-      // Add mini-game points to player's total score in database
-      const { data: player } = await supabase
+      // Validasi ID
+      if (!gameId || !playerId) {
+        console.error("Missing gameId or playerId for mini-game:", { gameId, playerId });
+        toast.error("Invalid game or player data!");
+        router.replace("/");
+        return;
+      }
+
+      // Debug: Log data yang akan diinsert
+      const dataToInsert = {
+        game_id: gameId,
+        player_id: playerId,
+        question_index: -1,
+        points_earned: score,
+        is_correct: false, // Mini-game tidak punya konsep benar/salah
+      };
+      console.log("Inserting mini-game score to player_answers:", JSON.stringify(dataToInsert, null, 2));
+
+      // Add mini-game points ke player score
+      const { data: player, error: playerError } = await supabase
         .from("players")
         .select("score")
-        .eq("id", useGameStore.getState().playerId)
-        .single()
+        .eq("id", playerId)
+        .single();
+
+      if (playerError) {
+        console.error("Player fetch error:", playerError.message, playerError.details);
+        throw playerError;
+      }
 
       if (player) {
-        const newScore = (player.score || 0) + score
-        await supabase.from("players").update({ score: newScore }).eq("id", useGameStore.getState().playerId)
+        const newScore = (player.score || 0) + score;
+        const { error: updateError } = await supabase
+          .from("players")
+          .update({ score: newScore })
+          .eq("id", playerId);
 
-        // Also record this as a mini-game bonus in player_answers
-        await supabase.from("player_answers").insert({
-          game_id: useGameStore.getState().gameId,
-          player_id: useGameStore.getState().playerId,
-          question_index: -1, // Use -1 to indicate mini-game bonus
-          points_earned: score,
-        })
+        if (updateError) {
+          console.error("Player update error:", updateError.message, updateError.details);
+          throw updateError;
+        }
+
+        // Record mini-game bonus
+        const { error: insertError } = await supabase.from("player_answers").insert(dataToInsert);
+        if (insertError) {
+          console.error("Supabase insert error (mini-game):", insertError.message, insertError.details, insertError.hint);
+          throw insertError;
+        }
       }
-    } catch (error) {
-      console.error("Error saving mini-game score:", error)
-      toast.error("Failed to save mini-game score")
+    } catch (error: any) {
+      console.error("Error saving mini-game score:", error.message, error.details, error.hint);
+      toast.error(`Failed to save mini-game score: ${error.message}`);
     }
 
-    addScore(score)
-    setShowMiniGame(false)
+    addScore(score);
+    setShowMiniGame(false);
     if (currentQuestion + 1 < gameSettings!.questionCount) {
-      setCurrentQuestion(currentQuestion + 1)
+      setCurrentQuestion(currentQuestion + 1);
     } else {
-      router.replace(`/result/${gameCode}`)
+      router.replace(`/result/${gameCode}`);
     }
-  }
+  };
 
   if (loading || !gameSettings)
     return (
@@ -342,7 +430,7 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
           </div>
         </div>
       </>
-    )
+    );
 
   if (!quiz || !question)
     return (
@@ -357,7 +445,7 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
           </div>
         </div>
       </>
-    )
+    );
 
   if (!isQuizStarted)
     return (
@@ -369,7 +457,7 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
           </div>
         </div>
       </>
-    )
+    );
 
   return (
     <>
@@ -388,7 +476,11 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
             </div>
           </div>
 
-          <Progress value={((currentQuestion + 1) / gameSettings.questionCount) * 100} className="mb-6" />
+          <div className="mb-2 flex items-center justify-between text-sm text-white/70">
+            <span>Progress: {currentQuestion}/{gameSettings.questionCount}</span>
+            <span>{Math.round((currentQuestion / gameSettings.questionCount) * 100)}%</span>
+          </div>
+          <Progress value={(currentQuestion / gameSettings.questionCount) * 100} className="mb-6" />
 
           <motion.div
             key={currentQuestion}
@@ -403,7 +495,7 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
             {question.question_image_url && (
               <div className="mb-6 flex justify-center">
                 <Image
-                  src={question.question_image_url || "/placeholder.svg"}
+                  src={question.question_image_url || "/images/placeholder.svg"}
                   alt={question.question_image_alt || "Gambar soal"}
                   width={300}
                   height={200}
@@ -420,13 +512,13 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
               className={`grid ${question.choices.length === 3 ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2"} gap-4`}
             >
               {question.choices.map((choice, index) => {
-                const isSelected = selectedChoiceId === choice.id
-                const isRight = choice.is_correct
-                let buttonColor: "blue" | "green" | "red" = "blue"
+                const isSelected = selectedChoiceId === choice.id;
+                const isRight = choice.is_correct;
+                let buttonColor: "blue" | "green" | "red" = "blue";
 
                 if (isAnswered) {
-                  if (isRight) buttonColor = "green"
-                  else if (isSelected && !isRight) buttonColor = "red"
+                  if (isRight) buttonColor = "green";
+                  else if (isSelected && !isRight) buttonColor = "red";
                 }
 
                 return (
@@ -444,7 +536,7 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
                       <div className="flex-1 flex items-center gap-3">
                         {choice.choice_image_url && (
                           <Image
-                            src={choice.choice_image_url || "/placeholder.svg"}
+                            src={choice.choice_image_url || "/images/placeholder.svg"}
                             alt={choice.choice_image_alt || "Pilihan jawaban"}
                             width={48}
                             height={48}
@@ -457,7 +549,7 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
                       </div>
                     </div>
                   </PixelButton>
-                )
+                );
               })}
             </div>
 
@@ -479,7 +571,7 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
         </div>
       </div>
     </>
-  )
+  );
 }
 
 function Background() {
@@ -491,5 +583,5 @@ function Background() {
       />
       <div className="absolute inset-0 bg-black/40" />
     </div>
-  )
+  );
 }
