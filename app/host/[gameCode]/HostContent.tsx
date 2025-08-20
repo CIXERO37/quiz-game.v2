@@ -202,7 +202,11 @@ export default function HostContent({ gameCode }: HostContentProps) {
     if (!gameId || !quiz) return
 
     const [answersResult, playersResult] = await Promise.all([
-      supabase.from("player_answers").select("player_id, question_index, points_earned").eq("game_id", gameId),
+      supabase
+        .from("player_answers")
+        .select("*")
+        .eq("game_id", gameId)
+        .not("question_index", "eq", -1),
       supabase.from("players").select("*").eq("game_id", gameId),
     ])
 
@@ -212,33 +216,25 @@ export default function HostContent({ gameCode }: HostContentProps) {
     const progressMap = new Map<string, PlayerProgress>()
 
     playersData.forEach((player: Player) => {
-      const playerAnswers = answers.filter((a) => a.player_id === player.id)
-      const calculatedScore = playerAnswers.reduce((sum, a) => sum + (a.points_earned || 0), 0)
-      const score = player.score || calculatedScore
+      const playerAnswers = answers.filter(
+        (a) => a.player_id === player.id && a.question_index >= 0
+      )
 
-      // Count all valid answers (excluding mini-game bonus answers with question_index = -1)
-      const answeredQuestions = playerAnswers.filter((a) => a.question_index >= 0).length
+      const uniqueQuestionIndices = new Set(playerAnswers.map(a => a.question_index))
+      const answeredQuestions = uniqueQuestionIndices.size
       const totalQuestions = gameSettings.questionCount || quiz.questionCount || 10
 
-      // Current question should be the question player is currently working on
-      // If they've answered 3 questions, they're working on question 4
-      const currentQuestion = Math.min(answeredQuestions + 1, totalQuestions)
-
-      // Player is active if they haven't completed all questions
-      const isActive = answeredQuestions < totalQuestions
-
-      console.log(
-        `[v0] Player ${player.name}: answered=${answeredQuestions}, current=${currentQuestion}, total=${totalQuestions}`,
-      )
+      const calculatedScore = playerAnswers.reduce((sum, a) => sum + (a.points_earned || 0), 0)
+      const score = player.score || calculatedScore
 
       progressMap.set(player.id, {
         id: player.id,
         name: player.name,
         avatar: player.avatar || "/placeholder.svg?height=40&width=40&text=Player",
         score,
-        currentQuestion,
+        currentQuestion: answeredQuestions,
         totalQuestions,
-        isActive,
+        isActive: answeredQuestions < totalQuestions,
         rank: 0,
       })
     })
@@ -247,11 +243,11 @@ export default function HostContent({ gameCode }: HostContentProps) {
     const ranked = sorted.map((p, idx) => ({ ...p, rank: idx + 1 }))
     setPlayerProgress(ranked)
 
-    const anyPlayerCompleted = ranked.some((p) => p.currentQuestion > p.totalQuestions)
-    if (anyPlayerCompleted && ranked.length > 0 && !showLeaderboard) {
+    const allPlayersCompleted = ranked.every((p) => p.currentQuestion >= p.totalQuestions)
+    if (allPlayersCompleted && ranked.length > 0 && !showLeaderboard) {
       await supabase.from("games").update({ finished: true, is_started: false }).eq("id", gameId)
       setShowLeaderboard(true)
-      toast.success("🎉 A player has completed the quiz! Game ended for all players.")
+      toast.success("🎉 All players have completed the quiz!")
     }
   }, [gameId, quiz, showLeaderboard, gameSettings.questionCount])
 
@@ -296,11 +292,12 @@ export default function HostContent({ gameCode }: HostContentProps) {
         { event: "*", schema: "public", table: "players", filter: `game_id=eq.${gameId}` },
         () => {
           fetchPlayers()
-          setTimeout(() => updatePlayerProgress(), 200)
+          updatePlayerProgress()
         },
       )
       .subscribe()
 
+    // Tambahan: Subscription untuk player_answers
     const answersSubscription = supabase
       .channel("player_answers")
       .on(
@@ -308,7 +305,6 @@ export default function HostContent({ gameCode }: HostContentProps) {
         { event: "*", schema: "public", table: "player_answers", filter: `game_id=eq.${gameId}` },
         () => {
           updatePlayerProgress()
-          setTimeout(() => updatePlayerProgress(), 300)
         },
       )
       .subscribe()
@@ -321,30 +317,30 @@ export default function HostContent({ gameCode }: HostContentProps) {
       supabase.removeChannel(playersSubscription)
       supabase.removeChannel(answersSubscription)
     }
-  }, [gameId, fetchPlayers, quizStarted, showLeaderboard, updatePlayerProgress])
+  }, [gameId, fetchPlayers, updatePlayerProgress])
 
   useEffect(() => {
     if (!quizStarted || !gameSettings?.timeLimit) return
 
-    let unsub = () => {}
-    ;(async () => {
-      const { data } = await supabase.from("games").select("quiz_start_time, time_limit").eq("id", gameId).single()
+    let unsub = () => { }
+      ; (async () => {
+        const { data } = await supabase.from("games").select("quiz_start_time, time_limit").eq("id", gameId).single()
 
-      if (!data?.quiz_start_time) return
+        if (!data?.quiz_start_time) return
 
-      const start = new Date(data.quiz_start_time).getTime()
-      const limitMs = data.time_limit * 1000
+        const start = new Date(data.quiz_start_time).getTime()
+        const limitMs = data.time_limit * 1000
 
-      const tick = () => {
-        const remain = Math.max(0, start + limitMs - Date.now())
-        setQuizTimeLeft(Math.floor(remain / 1000))
-        if (remain <= 0) setIsTimerActive(false)
-      }
+        const tick = () => {
+          const remain = Math.max(0, start + limitMs - Date.now())
+          setQuizTimeLeft(Math.floor(remain / 1000))
+          if (remain <= 0) setIsTimerActive(false)
+        }
 
-      tick()
-      const iv = setInterval(tick, 1000)
-      unsub = () => clearInterval(iv)
-    })()
+        tick()
+        const iv = setInterval(tick, 1000)
+        unsub = () => clearInterval(iv)
+      })()
 
     return unsub
   }, [quizStarted, gameSettings?.timeLimit, gameId])
@@ -526,9 +522,9 @@ export default function HostContent({ gameCode }: HostContentProps) {
       />
       <RulesDialog
         open={false}
-        onOpenChange={() => {}}
+        onOpenChange={() => { }}
         quiz={quiz}
-        onStartGame={() => {}}
+        onStartGame={() => { }}
         aria-describedby="rules-description"
       />
 
@@ -594,7 +590,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
 
       <div className="relative z-10 container mx-auto px-4 py-8 min-h-screen font-mono text-white">
         {showLeaderboard ? (
-          <PodiumLeaderboard players={playerProgress} onAnimationComplete={() => {}} />
+          <PodiumLeaderboard players={playerProgress} onAnimationComplete={() => { }} />
         ) : !quizStarted ? (
           <div className="grid lg:grid-cols-2 gap-8">
             <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}>
@@ -745,44 +741,49 @@ export default function HostContent({ gameCode }: HostContentProps) {
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ duration: 0.4, delay: index * 0.05 }}
-                      className={`flex items-center gap-4 p-3 rounded-lg border-2 transition-all duration-300 ${
-                        player.rank === 1
-                          ? "border-yellow-400 bg-yellow-400/10"
-                          : player.rank === 2
-                            ? "border-gray-300 bg-gray-300/10"
-                            : player.rank === 3
-                              ? "border-amber-600 bg-amber-600/10"
-                              : "border-white/20 bg-white/5"
-                      }`}
+                      className={`flex flex-col p-3 rounded-lg border-2 transition-all duration-300 ${player.rank === 1
+                        ? "border-yellow-400 bg-yellow-400/10"
+                        : player.rank === 2
+                          ? "border-gray-300 bg-gray-300/10"
+                          : player.rank === 3
+                            ? "border-amber-600 bg-amber-600/10"
+                            : "border-white/20 bg-white/5"
+                        }`}
                     >
-                      <div className="text-xl font-bold text-white w-8 text-center">{player.rank}</div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-xl font-bold text-white w-8 text-center">{player.rank}</div>
 
-                      <Image
-                        src={player.avatar || "/placeholder.svg"}
-                        alt={player.name}
-                        width={40}
-                        height={40}
-                        className="rounded-full object-cover"
-                      />
+                        <Image
+                          src={player.avatar || "/placeholder.svg"}
+                          alt={player.name}
+                          width={40}
+                          height={40}
+                          className="rounded-full object-cover"
+                        />
 
-                      <div className="flex-1">
-                        <p className="font-bold text-white">{player.name}</p>
-                        <p className="text-yellow-300 text-sm">{player.score} pts</p>
+                        <div className="flex-1">
+                          <p className="font-bold text-white">{player.name}</p>
+                          <p className="text-yellow-300 text-sm">{player.score} pts</p>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {getRankIcon(player.rank)}
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      {/* Progress bar yang sudah diperbaiki */}
+                      <div className="flex items-center gap-2 mt-3">
                         <span className="text-xs text-white/70">
-                          {Math.max(0, player.currentQuestion - 1)}/{player.totalQuestions}
+                          {player.currentQuestion}/{player.totalQuestions}
                         </span>
-                        <div className="w-32 h-3 bg-white/30 rounded-full overflow-hidden border border-white/40">
+                        <div className="flex-1 h-3 bg-white/30 rounded-full overflow-hidden border border-white/40">
                           <motion.div
                             className="h-full bg-gradient-to-r from-green-400 to-green-500 shadow-sm"
                             initial={{ width: 0 }}
                             animate={{
                               width: `${Math.min(
                                 player.totalQuestions > 0
-                                  ? /* Use answered questions for progress calculation */
-                                    (Math.max(0, player.currentQuestion - 1) / player.totalQuestions) * 100
+                                  ? (player.currentQuestion / player.totalQuestions) * 100
                                   : 0,
                                 100,
                               )}%`,
@@ -792,7 +793,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
                         </div>
                         <span className="text-xs text-green-400 font-mono min-w-[35px]">
                           {player.totalQuestions > 0
-                            ? Math.round((Math.max(0, player.currentQuestion - 1) / player.totalQuestions) * 100)
+                            ? Math.round((player.currentQuestion / player.totalQuestions) * 100)
                             : 0}
                           %
                         </span>
