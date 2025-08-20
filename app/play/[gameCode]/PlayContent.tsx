@@ -297,7 +297,32 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
     ) // Slightly longer delay to ensure host sees the update
   }
 
-  const handleMiniGameComplete = (score: number) => {
+  const handleMiniGameComplete = async (score: number) => {
+    try {
+      // Add mini-game points to player's total score in database
+      const { data: player } = await supabase
+        .from("players")
+        .select("score")
+        .eq("id", useGameStore.getState().playerId)
+        .single()
+
+      if (player) {
+        const newScore = (player.score || 0) + score
+        await supabase.from("players").update({ score: newScore }).eq("id", useGameStore.getState().playerId)
+
+        // Also record this as a mini-game bonus in player_answers
+        await supabase.from("player_answers").insert({
+          game_id: useGameStore.getState().gameId,
+          player_id: useGameStore.getState().playerId,
+          question_index: -1, // Use -1 to indicate mini-game bonus
+          points_earned: score,
+        })
+      }
+    } catch (error) {
+      console.error("Error saving mini-game score:", error)
+      toast.error("Failed to save mini-game score")
+    }
+
     addScore(score)
     setShowMiniGame(false)
     if (currentQuestion + 1 < gameSettings!.questionCount) {

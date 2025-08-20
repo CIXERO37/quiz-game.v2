@@ -198,12 +198,6 @@ export default function HostContent({ gameCode }: HostContentProps) {
     fetchData()
   }, [gameCode, router, setGameCode, setGameId, setQuizId, setGameSettings, setIsHost])
 
-  const fetchPlayers = useCallback(async () => {
-    if (!gameId) return
-    const { data } = await supabase.from("players").select("*").eq("game_id", gameId)
-    if (data) setPlayers(data)
-  }, [gameId])
-
   const updatePlayerProgress = useCallback(async () => {
     if (!gameId || !quiz) return
 
@@ -222,9 +216,20 @@ export default function HostContent({ gameCode }: HostContentProps) {
       const calculatedScore = playerAnswers.reduce((sum, a) => sum + (a.points_earned || 0), 0)
       const score = player.score || calculatedScore
 
-      const answeredQuestions = playerAnswers.filter((a) => a.question_index !== -1).length
-      const currentQuestion = answeredQuestions + 1
-      const isActive = answeredQuestions < quiz.questionCount
+      // Count all valid answers (excluding mini-game bonus answers with question_index = -1)
+      const answeredQuestions = playerAnswers.filter((a) => a.question_index >= 0).length
+      const totalQuestions = gameSettings.questionCount || quiz.questionCount || 10
+
+      // Current question should be the question player is currently working on
+      // If they've answered 3 questions, they're working on question 4
+      const currentQuestion = Math.min(answeredQuestions + 1, totalQuestions)
+
+      // Player is active if they haven't completed all questions
+      const isActive = answeredQuestions < totalQuestions
+
+      console.log(
+        `[v0] Player ${player.name}: answered=${answeredQuestions}, current=${currentQuestion}, total=${totalQuestions}`,
+      )
 
       progressMap.set(player.id, {
         id: player.id,
@@ -232,7 +237,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
         avatar: player.avatar || "/placeholder.svg?height=40&width=40&text=Player",
         score,
         currentQuestion,
-        totalQuestions: quiz.questionCount,
+        totalQuestions,
         isActive,
         rank: 0,
       })
@@ -242,13 +247,26 @@ export default function HostContent({ gameCode }: HostContentProps) {
     const ranked = sorted.map((p, idx) => ({ ...p, rank: idx + 1 }))
     setPlayerProgress(ranked)
 
-    const anyPlayerCompleted = ranked.some((p) => p.currentQuestion > quiz.questionCount)
+    const anyPlayerCompleted = ranked.some((p) => p.currentQuestion > p.totalQuestions)
     if (anyPlayerCompleted && ranked.length > 0 && !showLeaderboard) {
       await supabase.from("games").update({ finished: true, is_started: false }).eq("id", gameId)
       setShowLeaderboard(true)
       toast.success("🎉 A player has completed the quiz! Game ended for all players.")
     }
-  }, [gameId, quiz, showLeaderboard])
+  }, [gameId, quiz, showLeaderboard, gameSettings.questionCount])
+
+  const fetchPlayers = useCallback(async () => {
+    if (!gameId) return
+
+    const { data: playersData, error } = await supabase.from("players").select("*").eq("game_id", gameId)
+
+    if (error) {
+      console.error("Error fetching players:", error)
+      return
+    }
+
+    setPlayers(playersData || [])
+  }, [gameId])
 
   useEffect(() => {
     if (!gameId) return
@@ -461,7 +479,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
     return (
       <div className="fixed inset-0 bg-gradient-to-b from-gray-900 via-indigo-950 to-black flex items-center justify-center font-mono text-white">
         {mounted && <StaticBackground />}
-        <div className="relative z-10 bg-white/10 border-2 border-white/30 p-8 text-center font-mono text-white rounded-lg backdrop-blur-sm">
+        <div className="absolute inset-0 bg-white/10 border-2 border-white/30 p-8 text-center font-mono text-white rounded-lg backdrop-blur-sm">
           <p className="mb-4">Quiz not found.</p>
           <PixelButton onClick={() => router.push("/")}>Back</PixelButton>
         </div>
@@ -515,9 +533,63 @@ export default function HostContent({ gameCode }: HostContentProps) {
       />
 
       <div className="fixed inset-0 z-0 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-gray-900 via-indigo-950 to-black" />
-        {mounted && <StaticBackground />}
-        <div className="absolute inset-0 bg-black/40" />
+        <div className="absolute inset-0">
+          <svg className="absolute inset-0 w-full h-full" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid slice">
+            <defs>
+              <radialGradient id="galaxy1" cx="20%" cy="30%" r="80%">
+                <stop offset="0%" stopColor="#7c3aed" stopOpacity="0.7" />
+                <stop offset="50%" stopColor="#1e40af" stopOpacity="0.4" />
+                <stop offset="100%" stopColor="transparent" stopOpacity="0" />
+              </radialGradient>
+              <radialGradient id="galaxy2" cx="80%" cy="70%" r="65%">
+                <stop offset="0%" stopColor="#ec4899" stopOpacity="0.6" />
+                <stop offset="50%" stopColor="#581c87" stopOpacity="0.3" />
+                <stop offset="100%" stopColor="transparent" stopOpacity="0" />
+              </radialGradient>
+              <radialGradient id="galaxy3" cx="60%" cy="10%" r="55%">
+                <stop offset="0%" stopColor="#059669" stopOpacity="0.5" />
+                <stop offset="50%" stopColor="#1e3a8a" stopOpacity="0.3" />
+                <stop offset="100%" stopColor="transparent" stopOpacity="0" />
+              </radialGradient>
+              <radialGradient id="galaxy4" cx="10%" cy="80%" r="45%">
+                <stop offset="0%" stopColor="#dc2626" stopOpacity="0.4" />
+                <stop offset="50%" stopColor="#581c87" stopOpacity="0.2" />
+                <stop offset="100%" stopColor="transparent" stopOpacity="0" />
+              </radialGradient>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#galaxy1)" />
+            <rect width="100%" height="100%" fill="url(#galaxy2)" />
+            <rect width="100%" height="100%" fill="url(#galaxy3)" />
+            <rect width="100%" height="100%" fill="url(#galaxy4)" />
+          </svg>
+        </div>
+
+        {Array.from({ length: 200 }).map((_, i) => (
+          <div
+            key={`distant-star-${i}`}
+            className="absolute bg-white rounded-full opacity-30"
+            style={{
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              width: `${Math.random() * 2 + 0.5}px`,
+              height: `${Math.random() * 2 + 0.5}px`,
+            }}
+          />
+        ))}
+
+        {Array.from({ length: 80 }).map((_, i) => (
+          <div
+            key={`bright-star-${i}`}
+            className="absolute bg-white rounded-full opacity-70"
+            style={{
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              width: `${Math.random() * 3 + 1}px`,
+              height: `${Math.random() * 3 + 1}px`,
+              boxShadow: "0 0 6px rgba(255, 255, 255, 0.8)",
+            }}
+          />
+        ))}
       </div>
 
       <div className="relative z-10 container mx-auto px-4 py-8 min-h-screen font-mono text-white">
@@ -700,18 +772,30 @@ export default function HostContent({ gameCode }: HostContentProps) {
 
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-white/70">
-                          {player.currentQuestion - 1}/{player.totalQuestions}
+                          {Math.max(0, player.currentQuestion - 1)}/{player.totalQuestions}
                         </span>
-                        <div className="w-24 h-2 bg-white/20 rounded-full overflow-hidden">
+                        <div className="w-32 h-3 bg-white/30 rounded-full overflow-hidden border border-white/40">
                           <motion.div
-                            className="h-full bg-green-400"
+                            className="h-full bg-gradient-to-r from-green-400 to-green-500 shadow-sm"
                             initial={{ width: 0 }}
                             animate={{
-                              width: `${((player.currentQuestion - 1) / player.totalQuestions) * 100}%`,
+                              width: `${Math.min(
+                                player.totalQuestions > 0
+                                  ? /* Use answered questions for progress calculation */
+                                    (Math.max(0, player.currentQuestion - 1) / player.totalQuestions) * 100
+                                  : 0,
+                                100,
+                              )}%`,
                             }}
-                            transition={{ duration: 0.3 }}
+                            transition={{ duration: 0.5, ease: "easeOut" }}
                           />
                         </div>
+                        <span className="text-xs text-green-400 font-mono min-w-[35px]">
+                          {player.totalQuestions > 0
+                            ? Math.round((Math.max(0, player.currentQuestion - 1) / player.totalQuestions) * 100)
+                            : 0}
+                          %
+                        </span>
                       </div>
                     </motion.div>
                   ))}
@@ -775,7 +859,7 @@ const StaticBackground = () => (
           </radialGradient>
           <radialGradient id="galaxy2" cx="80%" cy="70%" r="65%">
             <stop offset="0%" stopColor="#ec4899" stopOpacity="0.6" />
-            <stop offset="50%" stopColor="#7c2d12" stopOpacity="0.3" />
+            <stop offset="50%" stopColor="#581c87" stopOpacity="0.3" />
             <stop offset="100%" stopColor="transparent" stopOpacity="0" />
           </radialGradient>
           <radialGradient id="galaxy3" cx="60%" cy="10%" r="55%">
@@ -822,39 +906,6 @@ const StaticBackground = () => (
         }}
       />
     ))}
-
-    <div className="absolute inset-0">
-      <div
-        className="absolute bg-gradient-to-br from-purple-900/20 via-transparent to-blue-900/20 rounded-full"
-        style={{
-          left: "15%",
-          top: "25%",
-          width: "300px",
-          height: "200px",
-          transform: "rotate(-15deg)",
-        }}
-      />
-      <div
-        className="absolute bg-gradient-to-tl from-pink-900/15 via-transparent to-orange-900/15 rounded-full"
-        style={{
-          right: "20%",
-          bottom: "30%",
-          width: "250px",
-          height: "180px",
-          transform: "rotate(25deg)",
-        }}
-      />
-      <div
-        className="absolute bg-gradient-to-r from-emerald-900/10 via-transparent to-cyan-900/10 rounded-full"
-        style={{
-          left: "50%",
-          top: "10%",
-          width: "200px",
-          height: "150px",
-          transform: "rotate(45deg)",
-        }}
-      />
-    </div>
   </div>
 )
 
