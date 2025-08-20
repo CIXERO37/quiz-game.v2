@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useRouter } from "next/navigation"
 import { Clock } from "lucide-react"
@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress"
 import SpaceDodge from "@/components/space-dodge"
 import { useGameStore } from "@/lib/store"
 import { supabase } from "@/lib/supabase"
-import type { Quiz } from "@/lib/types"
+import type { Quiz, Question } from "@/lib/types"
 import Image from "next/image"
 import { toast } from "sonner"
 
@@ -58,6 +58,7 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
   const [loading, setLoading] = useState(true)
   const [showMiniGame, setShowMiniGame] = useState(false)
   const [gameSettings, setGameSettings] = useState<{ timeLimit: number; questionCount: number } | null>(null)
+  const [allQuestions, setAllQuestions] = useState<Question[]>([])
 
   useEffect(() => {
     const fetchGame = async () => {
@@ -106,6 +107,16 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
       }
 
       setQuiz(quizData as Quiz)
+
+      // 🔽 Langsung shuffle & simpan semua soal
+      const shuffled = [...quizData.questions]
+        .sort(() => Math.random() - 0.5)
+        .slice(0, gameData.question_count)
+        .map((q: any) => ({
+          ...q,
+          choices: [...q.choices].sort(() => Math.random() - 0.5),
+        }))
+      setAllQuestions(shuffled)
 
       if (gameData.is_started) {
         setIsQuizStarted(true)
@@ -161,39 +172,40 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
     }
   }, [gameCode, router])
 
+  // ✅ Timer sinkron dengan server
   useEffect(() => {
     if (!isQuizStarted || !gameSettings) return
-    const timer = setInterval(() => {
-      setTimeLeft((t) => {
-        if (t <= 1) {
-          clearInterval(timer)
+
+    let unsub = () => {};
+    ;(async () => {
+      const { data } = await supabase
+        .from("games")
+        .select("quiz_start_time, time_limit")
+        .eq("code", gameCode.toUpperCase())
+        .single()
+
+      if (!data?.quiz_start_time) return
+
+      const start = new Date(data.quiz_start_time).getTime()
+      const limitMs = data.time_limit * 1000
+
+      const tick = () => {
+        const remain = Math.max(0, start + limitMs - Date.now())
+        setTimeLeft(Math.floor(remain / 1000))
+        if (remain <= 0) {
           setShouldNavigate(true)
-          return 0
         }
-        return t - 1
-      })
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [isQuizStarted, gameSettings])
+      }
 
-  useEffect(() => {
-    if (shouldNavigate) {
-      router.replace(`/result/${gameCode}`)
-    }
-  }, [shouldNavigate, gameCode, router])
+      tick()
+      const iv = setInterval(tick, 1000)
+      unsub = () => clearInterval(iv)
+    })()
 
-  const shuffledQuestions = useMemo(() => {
-    if (!quiz || !gameSettings) return []
-    return [...quiz.questions]
-      .sort(() => Math.random() - 0.5)
-      .slice(0, gameSettings.questionCount)
-      .map((q) => ({
-        ...q,
-        choices: [...q.choices].sort(() => Math.random() - 0.5),
-      }))
-  }, [quiz, gameSettings])
+    return unsub
+  }, [isQuizStarted, gameSettings, gameCode])
 
-  const question = shuffledQuestions[currentQuestion]
+  const question = allQuestions[currentQuestion]
 
   const getChoiceLabel = (index: number) => String.fromCharCode(65 + index)
 
@@ -222,7 +234,6 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
       incrementCorrectAnswers()
     }
 
-    // 🔽 Simpan jawaban ke Supabase
     await supabase.from("player_answers").insert({
       game_id: useGameStore.getState().gameId,
       player_id: useGameStore.getState().playerId,
@@ -230,7 +241,6 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
       points_earned: earnedPoints,
     })
 
-    // 🔽 Update total skor pemain di Supabase
     if (correct) {
       const { data: player } = await supabase
         .from("players")
@@ -247,19 +257,18 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
       }
     }
 
-    setShowResult(true)
-    setTimeout(() => {
-      setShowResult(false)
-      setIsAnswered(false)
-      setSelectedChoiceId(null)
-      if (correct && (correctAnswers + 1) % 3 === 0) {
-        setShowMiniGame(true)
-      } else if (currentQuestion + 1 < gameSettings!.questionCount) {
-        setCurrentQuestion(currentQuestion + 1)
-      } else {
-        setShouldNavigate(true)
-      }
-    }, 2000)
+  setTimeout(() => {
+  setShowResult(false)
+  setIsAnswered(false)
+  setSelectedChoiceId(null)
+  if (correct && (correctAnswers + 1) % 3 === 0) {
+    setShowMiniGame(true)
+  } else if (currentQuestion + 1 < gameSettings!.questionCount) {
+    setCurrentQuestion(currentQuestion + 1)
+  } else {
+    setShouldNavigate(true)
+  }
+}, correct ? 1000 : 2000)
   }
 
   const handleMiniGameComplete = (score: number) => {
