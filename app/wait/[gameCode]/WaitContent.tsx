@@ -51,7 +51,7 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
     const fetchGame = async () => {
       const { data, error } = await supabase
         .from("games")
-        .select("id, is_started, quiz_id")
+        .select("id, is_started, quiz_id, countdown_start_at")
         .eq("code", gameCode.toUpperCase())
         .single();
 
@@ -63,7 +63,7 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
 
       setGameId(data.id);
 
-      if (data.is_started) {
+      if (data.is_started && !data.countdown_start_at) {
         router.replace(`/play/${gameCode}`);
         return;
       }
@@ -77,73 +77,35 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
   useEffect(() => {
     if (loading || !gameId) return;
 
-    const channel = supabase
-      .channel("game-status")
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "games", filter: `code=eq.${gameCode.toUpperCase()}` },
-        (payload) => {
-          if (payload.new.is_started) {
-            setShowCountdown(true);
-          }
-        }
-      )
-      .subscribe();
-
-    const pollingInterval = setInterval(async () => {
+    const tick = async () => {
       const { data } = await supabase
         .from("games")
-        .select("is_started")
-        .eq("code", gameCode.toUpperCase())
+        .select("countdown_start_at, is_started")
+        .eq("id", gameId)
         .single();
-      if (data?.is_started) {
+
+      if (!data) return;
+
+      if (data.countdown_start_at) {
+        const start = new Date(data.countdown_start_at).getTime();
+        const elapsed = Math.floor((Date.now() - start) / 1000);
+        const left = Math.max(0, 10 - elapsed);
+
+        setCountdownValue(left);
         setShowCountdown(true);
-        clearInterval(pollingInterval);
+
+        if (left <= 0) {
+          router.replace(`/play/${gameCode}`);
+        }
+      } else if (data.is_started) {
+        router.replace(`/play/${gameCode}`);
       }
-    }, 5000);
-
-    const presenceChannel = getPresenceChannel();
-    presenceChannel
-      .on("presence", { event: "sync" }, () => {})
-      .subscribe(async (status) => {
-        if (status === "SUBSCRIBED") {
-          await presenceChannel.track({
-            game_id: gameId,
-            name: playerName,
-            avatar: playerAvatar,
-          });
-        }
-      });
-
-    return () => {
-      supabase.removeChannel(channel);
-      supabase.removeChannel(presenceChannel);
-      clearInterval(pollingInterval);
     };
-  }, [loading, gameId, gameCode, playerName, playerAvatar]);
 
-  useEffect(() => {
-    if (!showCountdown) return;
-
-    const timer = setInterval(() => {
-      setCountdownValue((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          setShouldRedirect(true);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [showCountdown]);
-
-  useEffect(() => {
-    if (shouldRedirect) {
-      router.replace(`/play/${gameCode}`);
-    }
-  }, [shouldRedirect, gameCode, router]);
+    tick();
+    const iv = setInterval(tick, 500);
+    return () => clearInterval(iv);
+  }, [loading, gameId, gameCode, router]);
 
   const handleExit = async () => {
     const channel = getPresenceChannel();
