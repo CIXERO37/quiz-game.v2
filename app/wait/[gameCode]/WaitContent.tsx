@@ -1,16 +1,16 @@
 /* eslint-disable @next/next/no-img-element */
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import { useRouter } from "next/navigation";
-import { useGameStore } from "@/lib/store";
-import { supabase } from "@/lib/supabase";
-import { getPresenceChannel } from "@/lib/presence";
-import { toast } from "sonner";
+import { useEffect, useState } from "react"
+import { motion } from "framer-motion"
+import { useRouter } from "next/navigation"
+import { useGameStore } from "@/lib/store"
+import { supabase } from "@/lib/supabase"
+import { cleanupPresence } from "@/lib/presence"
+import { toast } from "sonner"
 
 interface WaitContentProps {
-  gameCode: string;
+  gameCode: string
 }
 
 function Background() {
@@ -21,102 +21,170 @@ function Background() {
         style={{ backgroundSize: "cover", imageRendering: "pixelated" }}
       />
     </div>
-  );
+  )
 }
 
 export default function WaitContent({ gameCode }: WaitContentProps) {
-  const router = useRouter();
-  const { clearGame } = useGameStore();
+  const router = useRouter()
+  const { clearGame } = useGameStore()
 
-  const [loading, setLoading] = useState(true);
-  const [playerName, setPlayerName] = useState("");
-  const [playerAvatar, setPlayerAvatar] = useState("");
-  const [gameId, setGameId] = useState<string>("");
-  const [showCountdown, setShowCountdown] = useState(false);
-  const [countdownValue, setCountdownValue] = useState(10);
-  const [shouldRedirect, setShouldRedirect] = useState(false);
+  const [loading, setLoading] = useState(true)
+  const [playerName, setPlayerName] = useState("")
+  const [playerAvatar, setPlayerAvatar] = useState("")
+  const [gameId, setGameId] = useState<string>("")
+  const [showCountdown, setShowCountdown] = useState(false)
+  const [countdownValue, setCountdownValue] = useState(10)
+  const [shouldRedirect, setShouldRedirect] = useState(false)
 
   useEffect(() => {
-    const stored = localStorage.getItem("player");
+    const stored = localStorage.getItem("player")
     if (!stored) {
-      toast.error("Player data not found");
-      router.replace("/");
-      return;
+      toast.error("Player data not found")
+      router.replace("/")
+      return
     }
 
-    const { name, avatar } = JSON.parse(stored);
-    setPlayerName(name);
-    setPlayerAvatar(avatar);
+    const { name, avatar } = JSON.parse(stored)
+    setPlayerName(name)
+    setPlayerAvatar(avatar)
 
     const fetchGame = async () => {
       const { data, error } = await supabase
         .from("games")
         .select("id, is_started, quiz_id, countdown_start_at")
         .eq("code", gameCode.toUpperCase())
-        .single();
+        .single()
 
       if (error || !data) {
-        toast.error("Game not found");
-        router.replace("/");
-        return;
+        toast.error("Game not found")
+        router.replace("/")
+        return
       }
 
-      setGameId(data.id);
+      setGameId(data.id)
 
       if (data.is_started && !data.countdown_start_at) {
-        router.replace(`/play/${gameCode}`);
-        return;
+        router.replace(`/play/${gameCode}`)
+        return
       }
 
-      setLoading(false);
-    };
+      setLoading(false)
+    }
 
-    fetchGame();
-  }, [gameCode, router]);
+    fetchGame()
+  }, [gameCode, router])
 
   useEffect(() => {
-    if (loading || !gameId) return;
+    if (loading || !gameId) return
 
     const tick = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("games")
         .select("countdown_start_at, is_started")
         .eq("id", gameId)
-        .single();
+        .single()
 
-      if (!data) return;
+      if (!data) return
 
       if (data.countdown_start_at) {
-        const start = new Date(data.countdown_start_at).getTime();
-        const elapsed = Math.floor((Date.now() - start) / 1000);
-        const left = Math.max(0, 10 - elapsed);
+        const start = new Date(data.countdown_start_at).getTime()
+        const elapsed = Math.floor((Date.now() - start) / 1000)
+        const left = Math.max(0, 10 - elapsed)
 
-        setCountdownValue(left);
-        setShowCountdown(true);
+        setCountdownValue(left)
+        setShowCountdown(true)
 
         if (left <= 0) {
-          router.replace(`/play/${gameCode}`);
+          router.replace(`/play/${gameCode}`)
         }
       } else if (data.is_started) {
-        router.replace(`/play/${gameCode}`);
+        router.replace(`/play/${gameCode}`)
       }
-    };
+    }
 
-    tick();
-    const iv = setInterval(tick, 500);
-    return () => clearInterval(iv);
-  }, [loading, gameId, gameCode, router]);
+    tick()
+    const iv = setInterval(tick, 500)
+    return () => clearInterval(iv)
+  }, [loading, gameId, gameCode, router])
 
   const handleExit = async () => {
-    const channel = getPresenceChannel();
-    await channel.untrack();
-    if (gameId && playerName) {
-      await supabase.from("players").delete().eq("game_id", gameId).eq("name", playerName);
+    try {
+      console.log("[v0] Starting exit process for player:", playerName, "in game:", gameId)
+
+      await cleanupPresence()
+
+      if (gameId && playerName) {
+        console.log("[v0] Deleting player from database...")
+
+        const { data: playerToDelete, error: findError } = await supabase
+          .from("players")
+          .select("id, name")
+          .eq("game_id", gameId)
+          .eq("name", playerName)
+          .single()
+
+        if (findError) {
+          console.error("[v0] Error finding player to delete:", findError)
+        } else {
+          console.log("[v0] Found player to delete:", playerToDelete)
+        }
+
+        const { error, data } = await supabase
+          .from("players")
+          .delete()
+          .eq("game_id", gameId)
+          .eq("name", playerName)
+          .select()
+
+        if (error) {
+          console.error("[v0] Error removing player:", error)
+          toast.error("Failed to remove player from game")
+        } else {
+          console.log("[v0] Player successfully deleted from database:", data)
+          toast.success("Left the game successfully")
+        }
+
+        setTimeout(async () => {
+          console.log("[v0] First cleanup verification")
+          const { data: remainingPlayers } = await supabase
+            .from("players")
+            .select("id, name")
+            .eq("game_id", gameId)
+            .eq("name", playerName)
+
+          if (remainingPlayers && remainingPlayers.length > 0) {
+            console.warn("[v0] Player still exists, attempting force removal:", remainingPlayers)
+            await supabase.from("players").delete().eq("game_id", gameId).eq("name", playerName)
+          }
+        }, 100)
+
+        setTimeout(async () => {
+          console.log("[v0] Final cleanup verification")
+          const { data: stillRemaining } = await supabase
+            .from("players")
+            .select("id, name")
+            .eq("game_id", gameId)
+            .eq("name", playerName)
+
+          if (stillRemaining && stillRemaining.length > 0) {
+            console.warn("[v0] Final cleanup attempt for:", stillRemaining)
+            await supabase.from("players").delete().eq("game_id", gameId).eq("name", playerName)
+          } else {
+            console.log("[v0] Player successfully removed from database")
+          }
+        }, 300)
+      }
+
+      clearGame?.()
+      localStorage.removeItem("player")
+
+      console.log("[v0] Redirecting to home page...")
+      router.replace("/")
+    } catch (error) {
+      console.error("[v0] Error exiting game:", error)
+      toast.error("Failed to exit game")
     }
-    clearGame?.();
-    localStorage.removeItem("player");
-    router.replace("/");
-  };
+  }
 
   if (loading)
     return (
@@ -128,7 +196,7 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
           </div>
         </div>
       </>
-    );
+    )
 
   if (showCountdown)
     return (
@@ -155,7 +223,7 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
           </motion.div>
         </div>
       </>
-    );
+    )
 
   return (
     <>
@@ -180,7 +248,7 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
             Waiting to start
             <motion.span
               animate={{ opacity: [0, 1, 0] }}
-              transition={{ duration: 1, repeat: Infinity }}
+              transition={{ duration: 1, repeat: Number.POSITIVE_INFINITY }}
             >
               ...
             </motion.span>
@@ -195,5 +263,5 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
         </motion.div>
       </div>
     </>
-  );
+  )
 }

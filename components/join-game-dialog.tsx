@@ -62,6 +62,24 @@ export function JoinGameDialog({ open, onOpenChange, initialGameCode = "" }: Joi
     }
   }, [initialGameCode, form])
 
+  const extractGameCodeFromUrl = (input: string): string => {
+    try {
+      // Check if input contains a URL
+      if (input.includes("http") || input.includes("player?code=")) {
+        const url = new URL(input.includes("http") ? input : `https://example.com/${input}`)
+        const code = url.searchParams.get("code")
+        if (code && code.length === 6) {
+          return code.toUpperCase()
+        }
+      }
+      // If not a URL or no valid code found, return the input as is
+      return input.toUpperCase()
+    } catch {
+      // If URL parsing fails, return the input as is
+      return input.toUpperCase()
+    }
+  }
+
   const handleClose = () => {
     onOpenChange(false)
   }
@@ -104,7 +122,7 @@ export function JoinGameDialog({ open, onOpenChange, initialGameCode = "" }: Joi
           id: playerId,
           name: data.name,
           avatar: selectedAvatar,
-        })
+        }),
       )
 
       router.push(`/wait/${data.gameCode.toUpperCase()}`)
@@ -157,10 +175,13 @@ export function JoinGameDialog({ open, onOpenChange, initialGameCode = "" }: Joi
                   <FormLabel>Game Code</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="Enter 6-digit code"
+                      placeholder="Enter 6-digit code or paste join link"
                       {...field}
-                      onChange={(e) => field.onChange(e.target.value.toUpperCase())}
-                      maxLength={6}
+                      onChange={(e) => {
+                        const extractedCode = extractGameCodeFromUrl(e.target.value)
+                        field.onChange(extractedCode)
+                      }}
+                      maxLength={200} // Increased to allow full URLs to be pasted
                       className="bg-white/80 border-gray-200 font-mono text-center text-lg tracking-widest"
                       readOnly={!!initialGameCode}
                     />

@@ -26,6 +26,7 @@ import { toast, Toaster } from "sonner"
 import Image from "next/image"
 import type { Quiz, Player } from "@/lib/types"
 import { RulesDialog } from "@/components/rules-dialog"
+import { QRCodeModal } from "@/components/qr-code-modal"
 
 interface PlayerProgress {
   id: string
@@ -133,11 +134,13 @@ export default function HostContent({ gameCode }: HostContentProps) {
   const [isTimerActive, setIsTimerActive] = useState(false)
 
   const [copied, setCopied] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
   const [showExitModal, setShowExitModal] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
   const [mounted, setMounted] = useState(false)
 
   const [countdownLeft, setCountdownLeft] = useState<number | null>(null)
+  const [showQRModal, setShowQRModal] = useState(false)
 
   const { setGameCode, setQuizId, setIsHost, gameSettings, setGameSettings } = useGameStore()
 
@@ -202,11 +205,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
     if (!gameId || !quiz) return
 
     const [answersResult, playersResult] = await Promise.all([
-      supabase
-        .from("player_answers")
-        .select("*")
-        .eq("game_id", gameId)
-        .not("question_index", "eq", -1),
+      supabase.from("player_answers").select("*").eq("game_id", gameId).not("question_index", "eq", -1),
       supabase.from("players").select("*").eq("game_id", gameId),
     ])
 
@@ -216,11 +215,9 @@ export default function HostContent({ gameCode }: HostContentProps) {
     const progressMap = new Map<string, PlayerProgress>()
 
     playersData.forEach((player: Player) => {
-      const playerAnswers = answers.filter(
-        (a) => a.player_id === player.id && a.question_index >= 0
-      )
+      const playerAnswers = answers.filter((a) => a.player_id === player.id && a.question_index >= 0)
 
-      const uniqueQuestionIndices = new Set(playerAnswers.map(a => a.question_index))
+      const uniqueQuestionIndices = new Set(playerAnswers.map((a) => a.question_index))
       const answeredQuestions = uniqueQuestionIndices.size
       const totalQuestions = gameSettings.questionCount || quiz.questionCount || 10
 
@@ -254,18 +251,43 @@ export default function HostContent({ gameCode }: HostContentProps) {
   const fetchPlayers = useCallback(async () => {
     if (!gameId) return
 
+    console.log("[v0] Fetching players for gameId:", gameId)
     const { data: playersData, error } = await supabase.from("players").select("*").eq("game_id", gameId)
 
     if (error) {
-      console.error("Error fetching players:", error)
+      console.error("[v0] Error fetching players:", error)
       return
     }
 
+    console.log("[v0] Players fetched:", playersData?.length || 0, "players")
     setPlayers(playersData || [])
-  }, [gameId])
+
+    if (playersData) {
+      const progressMap = new Map<string, PlayerProgress>()
+
+      playersData.forEach((player: Player) => {
+        progressMap.set(player.id, {
+          id: player.id,
+          name: player.name,
+          avatar: player.avatar || "/placeholder.svg?height=40&width=40&text=Player",
+          score: player.score || 0,
+          currentQuestion: 0,
+          totalQuestions: gameSettings.questionCount || quiz?.questionCount || 10,
+          isActive: true,
+          rank: 0,
+        })
+      })
+
+      const sorted = Array.from(progressMap.values()).sort((a, b) => b.score - a.score)
+      const ranked = sorted.map((p, idx) => ({ ...p, rank: idx + 1 }))
+      setPlayerProgress(ranked)
+    }
+  }, [gameId, gameSettings.questionCount, quiz?.questionCount])
 
   useEffect(() => {
     if (!gameId) return
+
+    console.log("[v0] Setting up subscriptions for gameId:", gameId)
 
     const gameSubscription = supabase
       .channel("game_status")
@@ -273,6 +295,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "games", filter: `id=eq.${gameId}` },
         (payload) => {
+          console.log("[v0] Game status update received:", payload)
           if (payload.new.finished) {
             setQuizStarted(false)
             setShowLeaderboard(true)
@@ -290,29 +313,60 @@ export default function HostContent({ gameCode }: HostContentProps) {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "players", filter: `game_id=eq.${gameId}` },
-        () => {
-          fetchPlayers()
-          updatePlayerProgress()
+        (payload) => {
+          console.log("[v0] Players table change received:", payload.eventType, payload)
+          if (payload.eventType === "DELETE") {
+            console.log("[v0] Player deleted, updating immediately")
+            const deletedPlayerId = payload.old?.id
+            if (deletedPlayerId) {
+              // Remove from current state immediately
+              setPlayers((prev) => prev.filter((p) => p.id !== deletedPlayerId))
+              setPlayerProgress((prev) => prev.filter((p) => p.id !== deletedPlayerId))
+            }
+
+            // Multiple fetch attempts to ensure database consistency
+            fetchPlayers()
+            setTimeout(() => fetchPlayers(), 100)
+            setTimeout(() => fetchPlayers(), 300)
+            setTimeout(() => {
+              fetchPlayers()
+              updatePlayerProgress()
+            }, 500)
+          } else if (payload.eventType === "INSERT") {
+            console.log("[v0] Player added, updating immediately")
+            fetchPlayers()
+            setTimeout(() => {
+              updatePlayerProgress()
+            }, 50)
+          } else {
+            setTimeout(() => {
+              fetchPlayers()
+              updatePlayerProgress()
+            }, 25)
+          }
         },
       )
       .subscribe()
 
-    // Tambahan: Subscription untuk player_answers
     const answersSubscription = supabase
       .channel("player_answers")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "player_answers", filter: `game_id=eq.${gameId}` },
-        () => {
+        (payload) => {
+          console.log("[v0] Player answers change received:", payload)
           updatePlayerProgress()
         },
       )
       .subscribe()
 
-    fetchPlayers()
-    updatePlayerProgress()
+    setTimeout(() => {
+      fetchPlayers()
+      updatePlayerProgress()
+    }, 50)
 
     return () => {
+      console.log("[v0] Cleaning up subscriptions")
       supabase.removeChannel(gameSubscription)
       supabase.removeChannel(playersSubscription)
       supabase.removeChannel(answersSubscription)
@@ -322,25 +376,25 @@ export default function HostContent({ gameCode }: HostContentProps) {
   useEffect(() => {
     if (!quizStarted || !gameSettings?.timeLimit) return
 
-    let unsub = () => { }
-      ; (async () => {
-        const { data } = await supabase.from("games").select("quiz_start_time, time_limit").eq("id", gameId).single()
+    let unsub = () => {}
+    ;(async () => {
+      const { data } = await supabase.from("games").select("quiz_start_time, time_limit").eq("id", gameId).single()
 
-        if (!data?.quiz_start_time) return
+      if (!data?.quiz_start_time) return
 
-        const start = new Date(data.quiz_start_time).getTime()
-        const limitMs = data.time_limit * 1000
+      const start = new Date(data.quiz_start_time).getTime()
+      const limitMs = data.time_limit * 1000
 
-        const tick = () => {
-          const remain = Math.max(0, start + limitMs - Date.now())
-          setQuizTimeLeft(Math.floor(remain / 1000))
-          if (remain <= 0) setIsTimerActive(false)
-        }
+      const tick = () => {
+        const remain = Math.max(0, start + limitMs - Date.now())
+        setQuizTimeLeft(Math.floor(remain / 1000))
+        if (remain <= 0) setIsTimerActive(false)
+      }
 
-        tick()
-        const iv = setInterval(tick, 1000)
-        unsub = () => clearInterval(iv)
-      })()
+      tick()
+      const iv = setInterval(tick, 1000)
+      unsub = () => clearInterval(iv)
+    })()
 
     return unsub
   }, [quizStarted, gameSettings?.timeLimit, gameId])
@@ -350,7 +404,6 @@ export default function HostContent({ gameCode }: HostContentProps) {
 
     const tick = async () => {
       const { data } = await supabase.from("games").select("countdown_start_at").eq("id", gameId).single()
-
       if (!data?.countdown_start_at) return
 
       const start = new Date(data.countdown_start_at).getTime()
@@ -365,9 +418,15 @@ export default function HostContent({ gameCode }: HostContentProps) {
   }, [quizStarted, gameId, gameCode])
 
   const handleCopyCode = () => {
-    navigator.clipboard.writeText(gameCode)
+    navigator.clipboard.writeText(joinUrl)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(joinUrl)
+    setLinkCopied(true)
+    setTimeout(() => setLinkCopied(false), 2000)
   }
 
   const startQuiz = async () => {
@@ -522,11 +581,13 @@ export default function HostContent({ gameCode }: HostContentProps) {
       />
       <RulesDialog
         open={false}
-        onOpenChange={() => { }}
+        onOpenChange={() => {}}
         quiz={quiz}
-        onStartGame={() => { }}
+        onStartGame={() => {}}
         aria-describedby="rules-description"
       />
+
+      <QRCodeModal open={showQRModal} onOpenChange={setShowQRModal} gameCode={gameCode} joinUrl={joinUrl} />
 
       <div className="fixed inset-0 z-0 overflow-hidden">
         <div className="absolute inset-0">
@@ -590,7 +651,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
 
       <div className="relative z-10 container mx-auto px-4 py-8 min-h-screen font-mono text-white">
         {showLeaderboard ? (
-          <PodiumLeaderboard players={playerProgress} onAnimationComplete={() => { }} />
+          <PodiumLeaderboard players={playerProgress} onAnimationComplete={() => {}} />
         ) : !quizStarted ? (
           <div className="grid lg:grid-cols-2 gap-8">
             <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}>
@@ -628,9 +689,31 @@ export default function HostContent({ gameCode }: HostContentProps) {
                     </button>
                   </div>
 
-                  <div className="relative inline-block">
-                    <div className="bg-white text-black rounded-lg py-8 px-12 mb-4 pr-16 w-[400px] flex justify-center items-center">
+                  <div className="relative inline-block mb-4">
+                    <button
+                      onClick={() => setShowQRModal(true)}
+                      className="bg-white text-black rounded-lg py-8 px-12 w-[400px] flex justify-center items-center hover:bg-gray-50 transition-colors cursor-pointer"
+                      title="Click to enlarge QR code"
+                    >
                       <QRCodeSVG value={joinUrl} size={180} />
+                    </button>
+                  </div>
+
+                  <div className="mb-4">
+                    <p className="text-sm text-white/70 mb-2">Join Link:</p>
+                    <div className="flex items-center gap-2 bg-white/20 rounded-lg p-3">
+                      <span className="text-sm font-mono break-all flex-1">{joinUrl}</span>
+                      <button
+                        onClick={handleCopyLink}
+                        className="p-2 hover:bg-white/10 rounded transition-colors flex-shrink-0"
+                        title="Copy join link"
+                      >
+                        {linkCopied ? (
+                          <Check className="w-4 h-4 text-green-400" />
+                        ) : (
+                          <Copy className="w-4 h-4 text-white/70" />
+                        )}
+                      </button>
                     </div>
                   </div>
 
@@ -741,14 +824,15 @@ export default function HostContent({ gameCode }: HostContentProps) {
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ duration: 0.4, delay: index * 0.05 }}
-                      className={`flex flex-col p-3 rounded-lg border-2 transition-all duration-300 ${player.rank === 1
-                        ? "border-yellow-400 bg-yellow-400/10"
-                        : player.rank === 2
-                          ? "border-gray-300 bg-gray-300/10"
-                          : player.rank === 3
-                            ? "border-amber-600 bg-amber-600/10"
-                            : "border-white/20 bg-white/5"
-                        }`}
+                      className={`flex flex-col p-3 rounded-lg border-2 transition-all duration-300 ${
+                        player.rank === 1
+                          ? "border-yellow-400 bg-yellow-400/10"
+                          : player.rank === 2
+                            ? "border-gray-300 bg-gray-300/10"
+                            : player.rank === 3
+                              ? "border-amber-600 bg-amber-600/10"
+                              : "border-white/20 bg-white/5"
+                      }`}
                     >
                       <div className="flex items-center gap-4">
                         <div className="text-xl font-bold text-white w-8 text-center">{player.rank}</div>
@@ -766,12 +850,9 @@ export default function HostContent({ gameCode }: HostContentProps) {
                           <p className="text-yellow-300 text-sm">{player.score} pts</p>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                          {getRankIcon(player.rank)}
-                        </div>
+                        <div className="flex items-center gap-2">{getRankIcon(player.rank)}</div>
                       </div>
 
-                      {/* Progress bar yang sudah diperbaiki */}
                       <div className="flex items-center gap-2 mt-3">
                         <span className="text-xs text-white/70">
                           {player.currentQuestion}/{player.totalQuestions}
@@ -782,9 +863,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
                             initial={{ width: 0 }}
                             animate={{
                               width: `${Math.min(
-                                player.totalQuestions > 0
-                                  ? (player.currentQuestion / player.totalQuestions) * 100
-                                  : 0,
+                                player.totalQuestions > 0 ? (player.currentQuestion / player.totalQuestions) * 100 : 0,
                                 100,
                               )}%`,
                             }}
@@ -849,7 +928,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
 }
 
 const StaticBackground = () => (
-  <div className="absolute inset-0 overflow-hidden">
+  <div className="fixed inset-0 z-0 overflow-hidden">
     <div className="absolute inset-0">
       <svg className="absolute inset-0 w-full h-full" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid slice">
         <defs>
