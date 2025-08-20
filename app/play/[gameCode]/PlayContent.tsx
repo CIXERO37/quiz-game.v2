@@ -176,7 +176,7 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
   useEffect(() => {
     if (!isQuizStarted || !gameSettings) return
 
-    let unsub = () => {};
+    let unsub = () => {}
     ;(async () => {
       const { data } = await supabase
         .from("games")
@@ -234,41 +234,67 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
       incrementCorrectAnswers()
     }
 
-    await supabase.from("player_answers").insert({
-      game_id: useGameStore.getState().gameId,
-      player_id: useGameStore.getState().playerId,
-      question_index: currentQuestion,
-      points_earned: earnedPoints,
-    })
+    try {
+      // First, insert the answer
+      await supabase.from("player_answers").insert({
+        game_id: useGameStore.getState().gameId,
+        player_id: useGameStore.getState().playerId,
+        question_index: currentQuestion,
+        points_earned: earnedPoints,
+      })
 
-    if (correct) {
-      const { data: player } = await supabase
-        .from("players")
-        .select("score")
-        .eq("id", useGameStore.getState().playerId)
-        .single()
-
-      if (player) {
-        const newScore = (player.score || 0) + earnedPoints
-        await supabase
+      // Then, update player score if correct
+      if (correct) {
+        const { data: player } = await supabase
           .from("players")
-          .update({ score: newScore })
+          .select("score")
           .eq("id", useGameStore.getState().playerId)
+          .single()
+
+        if (player) {
+          const newScore = (player.score || 0) + earnedPoints
+          await supabase.from("players").update({ score: newScore }).eq("id", useGameStore.getState().playerId)
+        }
       }
+
+      if (currentQuestion + 1 >= gameSettings!.questionCount) {
+        // Mark this player as finished and trigger game completion
+        const { data: gameData } = await supabase.from("games").select("id").eq("code", gameCode.toUpperCase()).single()
+
+        if (gameData) {
+          // End the quiz for all players
+          await supabase
+            .from("games")
+            .update({
+              finished: true,
+              is_started: false,
+            })
+            .eq("id", gameData.id)
+        }
+      }
+    } catch (error) {
+      console.error("Error updating answer and score:", error)
+      toast.error("Failed to save answer. Please try again.")
+      return
     }
 
-  setTimeout(() => {
-  setShowResult(false)
-  setIsAnswered(false)
-  setSelectedChoiceId(null)
-  if (correct && (correctAnswers + 1) % 3 === 0) {
-    setShowMiniGame(true)
-  } else if (currentQuestion + 1 < gameSettings!.questionCount) {
-    setCurrentQuestion(currentQuestion + 1)
-  } else {
-    setShouldNavigate(true)
-  }
-}, correct ? 1000 : 2000)
+    setShowResult(true)
+
+    setTimeout(
+      () => {
+        setShowResult(false)
+        setIsAnswered(false)
+        setSelectedChoiceId(null)
+        if (correct && (correctAnswers + 1) % 3 === 0) {
+          setShowMiniGame(true)
+        } else if (currentQuestion + 1 < gameSettings!.questionCount) {
+          setCurrentQuestion(currentQuestion + 1)
+        } else {
+          router.replace(`/result/${gameCode}`)
+        }
+      },
+      correct ? 1500 : 2500,
+    ) // Slightly longer delay to ensure host sees the update
   }
 
   const handleMiniGameComplete = (score: number) => {
@@ -277,7 +303,7 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
     if (currentQuestion + 1 < gameSettings!.questionCount) {
       setCurrentQuestion(currentQuestion + 1)
     } else {
-      setShouldNavigate(true)
+      router.replace(`/result/${gameCode}`)
     }
   }
 
