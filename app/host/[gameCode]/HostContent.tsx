@@ -1,6 +1,6 @@
 "use client"
 
-import type React from "react"
+import React from "react"
 import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useRouter } from "next/navigation"
@@ -42,6 +42,82 @@ interface HostContentProps {
   gameCode: string
 }
 
+// ✅ Memoised PodiumLeaderboard
+const PodiumLeaderboard = React.memo(
+  ({
+    players,
+    onAnimationComplete,
+  }: {
+    players: PlayerProgress[]
+    onAnimationComplete: () => void
+  }) => {
+    const router = useRouter()
+    const [hasAnimated, setHasAnimated] = useState(false)
+
+    const sorted = [...players].sort((a, b) => b.score - a.score)
+    const [second, first, third] = [
+      sorted[1] || { name: "No Player", score: 0, avatar: "/placeholder.svg" },
+      sorted[0] || { name: "No Player", score: 0, avatar: "/placeholder.svg" },
+      sorted[2] || { name: "No Player", score: 0, avatar: "/placeholder.svg" },
+    ]
+    const rest = sorted.slice(3)
+
+    useEffect(() => {
+      if (!hasAnimated) {
+        setHasAnimated(true)
+        onAnimationComplete()
+      }
+    }, [hasAnimated, onAnimationComplete])
+
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.8 }}
+        className="min-h-screen flex items-center justify-center p-4"
+      >
+        <div className="text-center">
+          <motion.h1 className="text-5xl font-bold mb-12 text-yellow-300 drop-shadow-[4px_4px_0px_#000]">
+            🏆 CHAMPIONS 🏆
+          </motion.h1>
+          <div className="flex items-end justify-center gap-8">
+            {[second, first, third].map((p, i) => (
+              <div key={i} className="flex flex-col items-center">
+                <Image
+                  src={p.avatar || "/placeholder.svg"}
+                  alt={p.name}
+                  width={i === 1 ? 160 : 128}
+                  height={i === 1 ? 160 : 128}
+                  className="rounded-full border-4 border-white object-cover"
+                />
+                <p className="font-bold mt-2">{p.name}</p>
+                <p className="text-lg font-bold">{p.score} pts</p>
+              </div>
+            ))}
+          </div>
+          {rest.length > 0 && (
+            <div className="mt-8">
+              <h2 className="text-xl mb-4">Others</h2>
+              {rest.map((p, idx) => (
+                <div key={p.id} className="flex items-center justify-center gap-4">
+                  <span>
+                    {idx + 4}. {p.name}
+                  </span>
+                  <span>{p.score}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <PixelButton color="blue" className="mt-8" onClick={() => router.push("/")}>
+            Back to Dashboard
+          </PixelButton>
+        </div>
+      </motion.div>
+    )
+  },
+)
+PodiumLeaderboard.displayName = "PodiumLeaderboard"
+
 export default function HostContent({ gameCode }: HostContentProps) {
   const router = useRouter()
   const [gameId, setGameId] = useState<string | null>(null)
@@ -74,12 +150,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
 
   const calculateRanking = (players: PlayerProgress[]): PlayerProgress[] => {
     return players
-      .sort((a, b) => {
-        if (b.currentQuestion !== a.currentQuestion) {
-          return b.currentQuestion - a.currentQuestion
-        }
-        return b.score - a.score
-      })
+      .sort((a, b) => b.score - a.score)
       .map((player, index) => ({
         ...player,
         rank: index + 1,
@@ -137,11 +208,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
     if (!gameId || !quiz) return
 
     const [answersResult, playersResult] = await Promise.all([
-      supabase
-        .from("player_answers")
-        .select("player_id, question_index, points_earned, created_at")
-        .eq("game_id", gameId)
-        .order("created_at", { ascending: true }),
+      supabase.from("player_answers").select("player_id, question_index, points_earned").eq("game_id", gameId),
       supabase.from("players").select("*").eq("game_id", gameId),
     ])
 
@@ -152,9 +219,10 @@ export default function HostContent({ gameCode }: HostContentProps) {
 
     playersData.forEach((player: Player) => {
       const playerAnswers = answers.filter((a) => a.player_id === player.id)
-      const score = playerAnswers.reduce((sum, a) => sum + (a.points_earned || 0), 0)
+      const calculatedScore = playerAnswers.reduce((sum, a) => sum + (a.points_earned || 0), 0)
+      const score = player.score || calculatedScore
 
-      const answeredQuestions = playerAnswers.length
+      const answeredQuestions = playerAnswers.filter((a) => a.question_index !== -1).length
       const currentQuestion = answeredQuestions + 1
       const isActive = answeredQuestions < quiz.questionCount
 
@@ -170,13 +238,15 @@ export default function HostContent({ gameCode }: HostContentProps) {
       })
     })
 
-    const playersArray = Array.from(progressMap.values())
-    const rankedPlayers = calculateRanking(playersArray)
-    setPlayerProgress(rankedPlayers)
+    const sorted = Array.from(progressMap.values()).sort((a, b) => b.score - a.score)
+    const ranked = sorted.map((p, idx) => ({ ...p, rank: idx + 1 }))
+    setPlayerProgress(ranked)
 
-    const allDone = rankedPlayers.every((p) => p.currentQuestion > quiz.questionCount)
-    if (allDone && rankedPlayers.length > 0 && !showLeaderboard) {
-      await supabase.from("games").update({ finished: true }).eq("id", gameId)
+    const anyPlayerCompleted = ranked.some((p) => p.currentQuestion > quiz.questionCount)
+    if (anyPlayerCompleted && ranked.length > 0 && !showLeaderboard) {
+      await supabase.from("games").update({ finished: true, is_started: false }).eq("id", gameId)
+      setShowLeaderboard(true)
+      toast.success("🎉 A player has completed the quiz! Game ended for all players.")
     }
   }, [gameId, quiz, showLeaderboard])
 
@@ -208,7 +278,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
         { event: "*", schema: "public", table: "players", filter: `game_id=eq.${gameId}` },
         () => {
           fetchPlayers()
-          updatePlayerProgress()
+          setTimeout(() => updatePlayerProgress(), 200)
         },
       )
       .subscribe()
@@ -219,7 +289,8 @@ export default function HostContent({ gameCode }: HostContentProps) {
         "postgres_changes",
         { event: "*", schema: "public", table: "player_answers", filter: `game_id=eq.${gameId}` },
         () => {
-          setTimeout(() => updatePlayerProgress(), 100)
+          updatePlayerProgress()
+          setTimeout(() => updatePlayerProgress(), 300)
         },
       )
       .subscribe()
@@ -234,17 +305,12 @@ export default function HostContent({ gameCode }: HostContentProps) {
     }
   }, [gameId, fetchPlayers, quizStarted, showLeaderboard, updatePlayerProgress])
 
-  // ✅ Timer sinkron dengan server
   useEffect(() => {
     if (!quizStarted || !gameSettings?.timeLimit) return
 
-    let unsub = () => {};
+    let unsub = () => {}
     ;(async () => {
-      const { data } = await supabase
-        .from("games")
-        .select("quiz_start_time, time_limit")
-        .eq("id", gameId)
-        .single()
+      const { data } = await supabase.from("games").select("quiz_start_time, time_limit").eq("id", gameId).single()
 
       if (!data?.quiz_start_time) return
 
@@ -282,7 +348,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
     tick()
     const iv = setInterval(tick, 500)
     return () => clearInterval(iv)
-  }, [quizStarted, gameId])
+  }, [quizStarted, gameId, gameCode])
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(gameCode)
@@ -362,69 +428,6 @@ export default function HostContent({ gameCode }: HostContentProps) {
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
   }
 
-  const PodiumLeaderboard = ({
-    animateOnce,
-    onAnimationComplete,
-  }: {
-    animateOnce: boolean
-    onAnimationComplete: () => void
-  }) => {
-    const sorted = [...playerProgress].sort((a, b) => b.score - a.score)
-    const [second, first, third] = [
-      sorted[1] || { name: "No Player", score: 0, avatar: "/placeholder.svg" },
-      sorted[0] || { name: "No Player", score: 0, avatar: "/placeholder.svg" },
-      sorted[2] || { name: "No Player", score: 0, avatar: "/placeholder.svg" },
-    ]
-    const rest = sorted.slice(3)
-
-    return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.8 }}
-        onAnimationComplete={animateOnce ? onAnimationComplete : undefined}
-        className="min-h-screen flex items-center justify-center p-4"
-      >
-        <div className="text-center">
-          <motion.h1 className="text-5xl font-bold mb-12 text-yellow-300 drop-shadow-[4px_4px_0px_#000]">
-            🏆 CHAMPIONS 🏆
-          </motion.h1>
-          <div className="flex items-end justify-center gap-8">
-            {[second, first, third].map((p, i) => (
-              <div key={i} className="flex flex-col items-center">
-                <Image
-                  src={p.avatar || "/placeholder.svg"}
-                  alt={p.name}
-                  width={i === 1 ? 160 : 128}
-                  height={i === 1 ? 160 : 128}
-                  className="rounded-full border-4 border-white object-cover"
-                />
-                <p className="font-bold mt-2">{p.name}</p>
-                <p className="text-lg font-bold">{p.score} pts</p>
-              </div>
-            ))}
-          </div>
-          {rest.length > 0 && (
-            <div className="mt-8">
-              <h2 className="text-xl mb-4">Others</h2>
-              {rest.map((p, idx) => (
-                <div key={p.id} className="flex items-center justify-center gap-4">
-                  <span>
-                    {idx + 4}. {p.name}
-                  </span>
-                  <span>{p.score}</span>
-                </div>
-              ))}
-            </div>
-          )}
-          <PixelButton color="blue" className="mt-8" onClick={() => router.push("/")}>
-            Back to Dashboard
-          </PixelButton>
-        </div>
-      </motion.div>
-    )
-  }
-
   const getRankIcon = (rank: number) => {
     switch (rank) {
       case 1:
@@ -435,19 +438,6 @@ export default function HostContent({ gameCode }: HostContentProps) {
         return <Award className="w-5 h-5 text-amber-600" />
       default:
         return <span className="w-5 h-5 flex items-center justify-center text-sm font-bold text-white/70">#{rank}</span>
-    }
-  }
-
-  const getRankColor = (rank: number) => {
-    switch (rank) {
-      case 1:
-        return "border-yellow-400 bg-yellow-400/10"
-      case 2:
-        return "border-gray-300 bg-gray-300/10"
-      case 3:
-        return "border-amber-600 bg-amber-600/10"
-      default:
-        return "border-white/30 bg-white/5"
     }
   }
 
@@ -524,7 +514,6 @@ export default function HostContent({ gameCode }: HostContentProps) {
         aria-describedby="rules-description"
       />
 
-      {/* Background with static galaxy theme */}
       <div className="fixed inset-0 z-0 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-gray-900 via-indigo-950 to-black" />
         {mounted && <StaticBackground />}
@@ -533,9 +522,8 @@ export default function HostContent({ gameCode }: HostContentProps) {
 
       <div className="relative z-10 container mx-auto px-4 py-8 min-h-screen font-mono text-white">
         {showLeaderboard ? (
-          <PodiumLeaderboard animateOnce={true} onAnimationComplete={() => {}} />
+          <PodiumLeaderboard players={playerProgress} onAnimationComplete={() => {}} />
         ) : !quizStarted ? (
-          /* ---------- WAITING ROOM ---------- */
           <div className="grid lg:grid-cols-2 gap-8">
             <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}>
               <div className="bg-white/10 border-2 border-white/20 p-6 rounded-lg backdrop-blur-sm">
@@ -633,7 +621,6 @@ export default function HostContent({ gameCode }: HostContentProps) {
             </motion.div>
           </div>
         ) : (
-          /* ---------- PLAYER PROGRESS ---------- */
           <div className="space-y-8">
             <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
               <div className="bg-white/10 border-2 border-white/20 p-6 rounded-lg flex items-center justify-between backdrop-blur-sm">
@@ -664,68 +651,77 @@ export default function HostContent({ gameCode }: HostContentProps) {
             </motion.div>
 
             <motion.div
-  initial={{ opacity: 0, y: 20 }}
-  animate={{ opacity: 1, y: 0 }}
-  className="bg-white/10 border-2 border-white/20 rounded-lg p-6 backdrop-blur-sm"
->
-  <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-    <Trophy className="w-6 h-6 text-yellow-400" /> Live Player Rankings
-  </h2>
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white/10 border-2 border-white/20 rounded-lg p-6 backdrop-blur-sm"
+            >
+              <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                <Trophy className="w-6 h-6 text-yellow-400" /> Live Player Rankings
+              </h2>
 
-  {playerProgress.length === 0 ? (
-    <div className="text-center py-8 text-white/60">
-      <UsersRound className="w-12 h-12 mx-auto mb-4 opacity-50" />
-      <p>No players found.</p>
-    </div>
-  ) : (
-    <div className="space-y-3">
-      {playerProgress
-        .sort((a, b) => b.score - a.score)
-        .map((player, index) => (
-          <motion.div
-            key={player.id}
-            layout
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.4, delay: index * 0.05 }}
-            className="bg-white/10 border border-white/20 rounded-lg p-3 flex items-center gap-4"
-          >
-            {/* Avatar */}
-            <Image
-              src={player.avatar || "/placeholder.svg"}
-              alt={player.name}
-              width={40}
-              height={40}
-              className="rounded-full object-cover"
-            />
+              {playerProgress.length === 0 ? (
+                <div className="text-center py-8 text-white/60">
+                  <UsersRound className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No players found.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {playerProgress.map((player, index) => (
+                    <motion.div
+                      key={player.id}
+                      layout
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.4, delay: index * 0.05 }}
+                      className={`flex items-center gap-4 p-3 rounded-lg border-2 transition-all duration-300 ${
+                        player.rank === 1
+                          ? "border-yellow-400 bg-yellow-400/10"
+                          : player.rank === 2
+                            ? "border-gray-300 bg-gray-300/10"
+                            : player.rank === 3
+                              ? "border-amber-600 bg-amber-600/10"
+                              : "border-white/20 bg-white/5"
+                      }`}
+                    >
+                      <div className="text-xl font-bold text-white w-8 text-center">{player.rank}</div>
 
-            {/* Name + Points */}
-            <div className="flex-1">
-              <p className="font-bold text-sm text-white">{player.name}</p>
-              <p className="text-xs text-yellow-300">{player.score} pts</p>
-            </div>
+                      <Image
+                        src={player.avatar || "/placeholder.svg"}
+                        alt={player.name}
+                        width={40}
+                        height={40}
+                        className="rounded-full object-cover"
+                      />
 
-            {/* Progress bar */}
-            <div className="w-24 h-1.5 bg-white/20 rounded-full overflow-hidden">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{
-                  width: `${((player.currentQuestion - 1) / player.totalQuestions) * 100}%`,
-                }}
-                transition={{ duration: 0.5, ease: "easeOut" }}
-                className="h-full bg-blue-400"
-              />
-            </div>
-          </motion.div>
-        ))}
-    </div>
-  )}
-</motion.div>
+                      <div className="flex-1">
+                        <p className="font-bold text-white">{player.name}</p>
+                        <p className="text-yellow-300 text-sm">{player.score} pts</p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-white/70">
+                          {player.currentQuestion - 1}/{player.totalQuestions}
+                        </span>
+                        <div className="w-24 h-2 bg-white/20 rounded-full overflow-hidden">
+                          <motion.div
+                            className="h-full bg-green-400"
+                            initial={{ width: 0 }}
+                            animate={{
+                              width: `${((player.currentQuestion - 1) / player.totalQuestions) * 100}%`,
+                            }}
+                            transition={{ duration: 0.3 }}
+                          />
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
           </div>
         )}
       </div>
 
-      {/* Modal Exit */}
       <AnimatePresence>
         {showExitModal && (
           <motion.div
@@ -767,14 +763,11 @@ export default function HostContent({ gameCode }: HostContentProps) {
   )
 }
 
-// Static Galaxy Background – replace the old <AnimatedStars />
 const StaticBackground = () => (
   <div className="absolute inset-0 overflow-hidden">
-    {/* Static nebula backdrop */}
     <div className="absolute inset-0">
       <svg className="absolute inset-0 w-full h-full" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid slice">
         <defs>
-          {/* Deep space nebula gradients */}
           <radialGradient id="galaxy1" cx="20%" cy="30%" r="80%">
             <stop offset="0%" stopColor="#7c3aed" stopOpacity="0.7" />
             <stop offset="50%" stopColor="#1e40af" stopOpacity="0.4" />
@@ -803,7 +796,6 @@ const StaticBackground = () => (
       </svg>
     </div>
 
-    {/* Distant star field */}
     {Array.from({ length: 200 }).map((_, i) => (
       <div
         key={`distant-star-${i}`}
@@ -817,7 +809,6 @@ const StaticBackground = () => (
       />
     ))}
 
-    {/* Bright stars */}
     {Array.from({ length: 80 }).map((_, i) => (
       <div
         key={`bright-star-${i}`}
@@ -832,7 +823,6 @@ const StaticBackground = () => (
       />
     ))}
 
-    {/* Cosmic dust clouds */}
     <div className="absolute inset-0">
       <div
         className="absolute bg-gradient-to-br from-purple-900/20 via-transparent to-blue-900/20 rounded-full"
@@ -868,7 +858,6 @@ const StaticBackground = () => (
   </div>
 )
 
-// Pixel Button Component
 function PixelButton({
   color = "blue",
   size = "md",
