@@ -516,7 +516,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
 
   if (!gameCode) {
     return (
-      <div className="fixed inset-0 bg-gradient-to-b from-gray-900 via-indigo-950 to-black flex items-center justify-center font-mono text-white">
+      <div className="fixed inset-0 bg-black flex items-center justify-center font-mono text-white">
         <div className="text-lg">Invalid game code</div>
       </div>
     )
@@ -524,7 +524,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
 
   if (loading)
     return (
-      <div className="fixed inset-0 bg-gradient-to-b from-gray-900 via-indigo-950 to-black flex items-center justify-center font-mono text-white">
+      <div className="fixed inset-0 bg-black flex items-center justify-center font-mono text-white">
         {mounted && <StaticBackground />}
         <div className="relative z-10 text-white font-mono text-lg">Loading quiz...</div>
       </div>
@@ -532,7 +532,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
 
   if (!quiz)
     return (
-      <div className="fixed inset-0 bg-gradient-to-b from-gray-900 via-indigo-950 to-black flex items-center justify-center font-mono text-white">
+      <div className="fixed inset-0 bg-black flex items-center justify-center font-mono text-white">
         {mounted && <StaticBackground />}
         <div className="absolute inset-0 bg-white/10 border-2 border-white/30 p-8 text-center font-mono text-white rounded-lg backdrop-blur-sm">
           <p className="mb-4">Quiz not found.</p>
@@ -589,31 +589,38 @@ export default function HostContent({ gameCode }: HostContentProps) {
 
       <QRCodeModal open={showQRModal} onOpenChange={setShowQRModal} gameCode={gameCode} joinUrl={joinUrl} />
 
-      <div className="fixed inset-0 z-0 overflow-hidden">
+      <div className="fixed inset-0 z-0 overflow-hidden bg-black">
         <div className="absolute inset-0">
           <svg className="absolute inset-0 w-full h-full" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid slice">
             <defs>
               <radialGradient id="galaxy1" cx="20%" cy="30%" r="80%">
-                <stop offset="0%" stopColor="#7c3aed" stopOpacity="0.7" />
-                <stop offset="50%" stopColor="#1e40af" stopOpacity="0.4" />
+                <stop offset="0%" stopColor="#4c1d95" stopOpacity="0.3" />
+                <stop offset="50%" stopColor="#1e1b4b" stopOpacity="0.2" />
                 <stop offset="100%" stopColor="transparent" stopOpacity="0" />
               </radialGradient>
               <radialGradient id="galaxy2" cx="80%" cy="70%" r="65%">
-                <stop offset="0%" stopColor="#ec4899" stopOpacity="0.6" />
-                <stop offset="50%" stopColor="#581c87" stopOpacity="0.3" />
+                <stop offset="0%" stopColor="#701a75" stopOpacity="0.25" />
+                <stop offset="50%" stopColor="#312e81" stopOpacity="0.15" />
                 <stop offset="100%" stopColor="transparent" stopOpacity="0" />
               </radialGradient>
               <radialGradient id="galaxy3" cx="60%" cy="10%" r="55%">
-                <stop offset="0%" stopColor="#059669" stopOpacity="0.5" />
-                <stop offset="50%" stopColor="#1e3a8a" stopOpacity="0.3" />
+                <stop offset="0%" stopColor="#064e3b" stopOpacity="0.2" />
+                <stop offset="50%" stopColor="#1e1b4b" stopOpacity="0.1" />
                 <stop offset="100%" stopColor="transparent" stopOpacity="0" />
               </radialGradient>
               <radialGradient id="galaxy4" cx="10%" cy="80%" r="45%">
-                <stop offset="0%" stopColor="#dc2626" stopOpacity="0.4" />
-                <stop offset="50%" stopColor="#581c87" stopOpacity="0.2" />
+                <stop offset="0%" stopColor="#7f1d1d" stopOpacity="0.15" />
+                <stop offset="50%" stopColor="#312e81" stopOpacity="0.1" />
+                <stop offset="100%" stopColor="transparent" stopOpacity="0" />
+              </radialGradient>
+              <radialGradient id="nebula1" cx="40%" cy="60%" r="90%">
+                <stop offset="0%" stopColor="#1e1b4b" stopOpacity="0.1" />
+                <stop offset="70%" stopColor="#0f0f23" stopOpacity="0.05" />
                 <stop offset="100%" stopColor="transparent" stopOpacity="0" />
               </radialGradient>
             </defs>
+            <rect width="100%" height="100%" fill="#000000" />
+            <rect width="100%" height="100%" fill="url(#nebula1)" />
             <rect width="100%" height="100%" fill="url(#galaxy1)" />
             <rect width="100%" height="100%" fill="url(#galaxy2)" />
             <rect width="100%" height="100%" fill="url(#galaxy3)" />
@@ -621,29 +628,48 @@ export default function HostContent({ gameCode }: HostContentProps) {
           </svg>
         </div>
 
-        {Array.from({ length: 200 }).map((_, i) => (
+        {Array.from({ length: 300 }).map((_, i) => (
           <div
             key={`distant-star-${i}`}
-            className="absolute bg-white rounded-full opacity-30"
+            className="absolute bg-white rounded-full"
             style={{
               left: `${Math.random() * 100}%`,
               top: `${Math.random() * 100}%`,
-              width: `${Math.random() * 2 + 0.5}px`,
-              height: `${Math.random() * 2 + 0.5}px`,
+              width: `${Math.random() * 1.5 + 0.3}px`,
+              height: `${Math.random() * 1.5 + 0.3}px`,
+              opacity: Math.random() * 0.4 + 0.1,
+              animation: `twinkle ${Math.random() * 4 + 2}s infinite alternate`,
             }}
           />
         ))}
 
-        {Array.from({ length: 80 }).map((_, i) => (
+        {Array.from({ length: 50 }).map((_, i) => (
           <div
             key={`bright-star-${i}`}
-            className="absolute bg-white rounded-full opacity-70"
+            className="absolute bg-white rounded-full"
             style={{
               left: `${Math.random() * 100}%`,
               top: `${Math.random() * 100}%`,
-              width: `${Math.random() * 3 + 1}px`,
-              height: `${Math.random() * 3 + 1}px`,
-              boxShadow: "0 0 6px rgba(255, 255, 255, 0.8)",
+              width: `${Math.random() * 2 + 1}px`,
+              height: `${Math.random() * 2 + 1}px`,
+              opacity: Math.random() * 0.6 + 0.4,
+              boxShadow: "0 0 8px rgba(255, 255, 255, 0.6), 0 0 16px rgba(255, 255, 255, 0.3)",
+              animation: `twinkle ${Math.random() * 3 + 1.5}s infinite alternate`,
+            }}
+          />
+        ))}
+
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div
+            key={`shooting-star-${i}`}
+            className="absolute bg-gradient-to-r from-white to-transparent h-px opacity-70"
+            style={{
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              width: `${Math.random() * 100 + 50}px`,
+              transform: `rotate(${Math.random() * 360}deg)`,
+              animation: `shooting-star ${Math.random() * 8 + 4}s infinite linear`,
+              animationDelay: `${Math.random() * 5}s`,
             }}
           />
         ))}
@@ -807,7 +833,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
               className="bg-white/10 border-2 border-white/20 rounded-lg p-6 backdrop-blur-sm"
             >
               <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                <Trophy className="w-6 h-6 text-yellow-400" /> Live Player Rankings
+                <Trophy className="w-6 h-6 text-yellow-400" /> Players
               </h2>
 
               {playerProgress.length === 0 ? (
@@ -928,31 +954,38 @@ export default function HostContent({ gameCode }: HostContentProps) {
 }
 
 const StaticBackground = () => (
-  <div className="fixed inset-0 z-0 overflow-hidden">
+  <div className="fixed inset-0 z-0 overflow-hidden bg-black">
     <div className="absolute inset-0">
       <svg className="absolute inset-0 w-full h-full" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid slice">
         <defs>
           <radialGradient id="galaxy1" cx="20%" cy="30%" r="80%">
-            <stop offset="0%" stopColor="#7c3aed" stopOpacity="0.7" />
-            <stop offset="50%" stopColor="#1e40af" stopOpacity="0.4" />
+            <stop offset="0%" stopColor="#4c1d95" stopOpacity="0.3" />
+            <stop offset="50%" stopColor="#1e1b4b" stopOpacity="0.2" />
             <stop offset="100%" stopColor="transparent" stopOpacity="0" />
           </radialGradient>
           <radialGradient id="galaxy2" cx="80%" cy="70%" r="65%">
-            <stop offset="0%" stopColor="#ec4899" stopOpacity="0.6" />
-            <stop offset="50%" stopColor="#581c87" stopOpacity="0.3" />
+            <stop offset="0%" stopColor="#701a75" stopOpacity="0.25" />
+            <stop offset="50%" stopColor="#312e81" stopOpacity="0.15" />
             <stop offset="100%" stopColor="transparent" stopOpacity="0" />
           </radialGradient>
           <radialGradient id="galaxy3" cx="60%" cy="10%" r="55%">
-            <stop offset="0%" stopColor="#059669" stopOpacity="0.5" />
-            <stop offset="50%" stopColor="#1e3a8a" stopOpacity="0.3" />
+            <stop offset="0%" stopColor="#064e3b" stopOpacity="0.2" />
+            <stop offset="50%" stopColor="#1e1b4b" stopOpacity="0.1" />
             <stop offset="100%" stopColor="transparent" stopOpacity="0" />
           </radialGradient>
           <radialGradient id="galaxy4" cx="10%" cy="80%" r="45%">
-            <stop offset="0%" stopColor="#dc2626" stopOpacity="0.4" />
-            <stop offset="50%" stopColor="#581c87" stopOpacity="0.2" />
+            <stop offset="0%" stopColor="#7f1d1d" stopOpacity="0.15" />
+            <stop offset="50%" stopColor="#312e81" stopOpacity="0.1" />
+            <stop offset="100%" stopColor="transparent" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id="nebula1" cx="40%" cy="60%" r="90%">
+            <stop offset="0%" stopColor="#1e1b4b" stopOpacity="0.1" />
+            <stop offset="70%" stopColor="#0f0f23" stopOpacity="0.05" />
             <stop offset="100%" stopColor="transparent" stopOpacity="0" />
           </radialGradient>
         </defs>
+        <rect width="100%" height="100%" fill="#000000" />
+        <rect width="100%" height="100%" fill="url(#nebula1)" />
         <rect width="100%" height="100%" fill="url(#galaxy1)" />
         <rect width="100%" height="100%" fill="url(#galaxy2)" />
         <rect width="100%" height="100%" fill="url(#galaxy3)" />
@@ -960,29 +993,31 @@ const StaticBackground = () => (
       </svg>
     </div>
 
-    {Array.from({ length: 200 }).map((_, i) => (
+    {Array.from({ length: 300 }).map((_, i) => (
       <div
         key={`distant-star-${i}`}
-        className="absolute bg-white rounded-full opacity-30"
+        className="absolute bg-white rounded-full"
         style={{
           left: `${Math.random() * 100}%`,
           top: `${Math.random() * 100}%`,
-          width: `${Math.random() * 2 + 0.5}px`,
-          height: `${Math.random() * 2 + 0.5}px`,
+          width: `${Math.random() * 1.5 + 0.3}px`,
+          height: `${Math.random() * 1.5 + 0.3}px`,
+          opacity: Math.random() * 0.4 + 0.1,
         }}
       />
     ))}
 
-    {Array.from({ length: 80 }).map((_, i) => (
+    {Array.from({ length: 50 }).map((_, i) => (
       <div
         key={`bright-star-${i}`}
-        className="absolute bg-white rounded-full opacity-70"
+        className="absolute bg-white rounded-full"
         style={{
           left: `${Math.random() * 100}%`,
           top: `${Math.random() * 100}%`,
-          width: `${Math.random() * 3 + 1}px`,
-          height: `${Math.random() * 3 + 1}px`,
-          boxShadow: "0 0 6px rgba(255, 255, 255, 0.8)",
+          width: `${Math.random() * 2 + 1}px`,
+          height: `${Math.random() * 2 + 1}px`,
+          opacity: Math.random() * 0.6 + 0.4,
+          boxShadow: "0 0 8px rgba(255, 255, 255, 0.6), 0 0 16px rgba(255, 255, 255, 0.3)",
         }}
       />
     ))}
@@ -1020,3 +1055,27 @@ function PixelButton({
     </button>
   )
 }
+
+const styles = `
+  @keyframes twinkle {
+    0% { opacity: 0.3; }
+    100% { opacity: 1; }
+  }
+  
+  @keyframes shooting-star {
+    0% { 
+      opacity: 0;
+      transform: translateX(-100px) translateY(-100px) rotate(45deg);
+    }
+    10% { 
+      opacity: 1;
+    }
+    90% { 
+      opacity: 1;
+    }
+    100% { 
+      opacity: 0;
+      transform: translateX(100px) translateY(100px) rotate(45deg);
+    }
+  }
+`
