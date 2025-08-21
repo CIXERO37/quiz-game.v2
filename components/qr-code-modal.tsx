@@ -41,7 +41,7 @@ export function QRCodeModal({ open, onOpenChange, gameCode, joinUrl }: QRCodeMod
 
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold text-center bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            Join Game QR Code
+            Join Game
           </DialogTitle>
         </DialogHeader>
 
@@ -55,27 +55,27 @@ export function QRCodeModal({ open, onOpenChange, gameCode, joinUrl }: QRCodeMod
           <div className="space-y-2">
            
             <div className="flex items-center justify-center gap-2 bg-gray-100 rounded-lg p-3">
-              <span className="text-2xl font-mono font-bold text-gray-800">{gameCode}</span>
+              <span className="text-6xl font-mono font-bold text-gray-800">{gameCode}</span>
               <button
                 onClick={handleCopyCode}
                 className="p-1 hover:bg-gray-200 rounded transition-colors"
                 title="Copy game code"
               >
-                {copiedCode ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4 text-gray-600" />}
+                {copiedCode ? <Check className="w-6 h-6 text-green-600" /> : <Copy className="w-6 h-6 text-gray-600" />}
               </button>
             </div>
           </div>
 
           <div className="space-y-2">
-            <p className="text-sm font-medium text-gray-600">Join Link</p>
+      
             <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-3">
-              <span className="text-sm text-gray-700 truncate flex-1">{joinUrl}</span>
+              <span className="text-lg text-gray-700 truncate flex-1">{joinUrl}</span>
               <button
                 onClick={handleCopyUrl}
                 className="p-1 hover:bg-gray-200 rounded transition-colors flex-shrink-0"
                 title="Copy join link"
               >
-                {copiedUrl ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4 text-gray-600" />}
+                {copiedUrl ? <Check className="w-6 h-6 text-green-600" /> : <Copy className="w-6 h-6 text-gray-600" />}
               </button>
             </div>
           </div>
