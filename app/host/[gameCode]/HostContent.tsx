@@ -27,6 +27,7 @@ import Image from "next/image"
 import type { Quiz, Player } from "@/lib/types"
 import { RulesDialog } from "@/components/rules-dialog"
 import { QRCodeModal } from "@/components/qr-code-modal"
+import { syncServerTime } from "@/lib/server-time"
 
 interface PlayerProgress {
   id: string
@@ -403,19 +404,50 @@ export default function HostContent({ gameCode }: HostContentProps) {
     if (!quizStarted || !gameId) return
 
     const tick = async () => {
-      const { data } = await supabase.from("games").select("countdown_start_at").eq("id", gameId).single()
-      if (!data?.countdown_start_at) return
+      try {
+        const { data } = await supabase.from("games").select("countdown_start_at").eq("id", gameId).single()
+        if (!data?.countdown_start_at) return
 
-      const start = new Date(data.countdown_start_at).getTime()
-      const elapsed = Math.floor((Date.now() - start) / 1000)
-      const left = Math.max(0, 10 - elapsed)
-      setCountdownLeft(left)
+        const start = new Date(data.countdown_start_at).getTime()
+        const serverTime = await syncServerTime()
+        const elapsed = Math.floor((serverTime - start) / 1000)
+        const left = Math.max(0, 10 - elapsed)
+
+        console.log(
+          "[v0] Host countdown sync - Server time:",
+          new Date(serverTime).toISOString(),
+          "Start:",
+          new Date(start).toISOString(),
+          "Elapsed:",
+          elapsed,
+          "Left:",
+          left,
+        )
+
+        if (left >= 0 && left <= 10) {
+          setCountdownLeft(left)
+        } else {
+          console.warn("[v0] Invalid countdown value:", left, "- resetting to 0")
+          setCountdownLeft(0)
+        }
+      } catch (error) {
+        console.error("[v0] Error in countdown tick:", error)
+        const { data } = await supabase.from("games").select("countdown_start_at").eq("id", gameId).single()
+        if (data?.countdown_start_at) {
+          const start = new Date(data.countdown_start_at).getTime()
+          const elapsed = Math.floor((Date.now() - start) / 1000)
+          const left = Math.max(0, 10 - elapsed)
+          if (left >= 0 && left <= 10) {
+            setCountdownLeft(left)
+          }
+        }
+      }
     }
 
     tick()
-    const iv = setInterval(tick, 500)
+    const iv = setInterval(tick, 200)
     return () => clearInterval(iv)
-  }, [quizStarted, gameId, gameCode])
+  }, [quizStarted, gameId])
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(joinUrl)

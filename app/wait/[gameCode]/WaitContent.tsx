@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation"
 import { useGameStore } from "@/lib/store"
 import { supabase } from "@/lib/supabase"
 import { cleanupPresence } from "@/lib/presence"
+import { syncServerTime } from "@/lib/server-time"
 import { toast } from "sonner"
 
 interface WaitContentProps {
@@ -78,32 +79,63 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
     if (loading || !gameId) return
 
     const tick = async () => {
-      const { data, error } = await supabase
-        .from("games")
-        .select("countdown_start_at, is_started")
-        .eq("id", gameId)
-        .single()
+      try {
+        const { data, error } = await supabase
+          .from("games")
+          .select("countdown_start_at, is_started")
+          .eq("id", gameId)
+          .single()
 
-      if (!data) return
+        if (!data) return
 
-      if (data.countdown_start_at) {
-        const start = new Date(data.countdown_start_at).getTime()
-        const elapsed = Math.floor((Date.now() - start) / 1000)
-        const left = Math.max(0, 10 - elapsed)
+        if (data.countdown_start_at) {
+          const start = new Date(data.countdown_start_at).getTime()
+          const serverTime = await syncServerTime()
+          const elapsed = Math.floor((serverTime - start) / 1000)
+          const left = Math.max(0, 10 - elapsed)
 
-        setCountdownValue(left)
-        setShowCountdown(true)
+          console.log(
+            "[v0] Player countdown sync - Server time:",
+            new Date(serverTime).toISOString(),
+            "Start:",
+            new Date(start).toISOString(),
+            "Elapsed:",
+            elapsed,
+            "Left:",
+            left,
+          )
 
-        if (left <= 0) {
+          if (left >= 0 && left <= 10) {
+            setCountdownValue(left)
+            setShowCountdown(true)
+          } else {
+            console.warn("[v0] Invalid countdown value:", left)
+          }
+
+          if (left <= 0) {
+            router.replace(`/play/${gameCode}`)
+          }
+        } else if (data.is_started) {
           router.replace(`/play/${gameCode}`)
         }
-      } else if (data.is_started) {
-        router.replace(`/play/${gameCode}`)
+      } catch (error) {
+        console.error("[v0] Error in countdown tick:", error)
+        const { data } = await supabase.from("games").select("countdown_start_at, is_started").eq("id", gameId).single()
+
+        if (data?.countdown_start_at) {
+          const start = new Date(data.countdown_start_at).getTime()
+          const elapsed = Math.floor((Date.now() - start) / 1000)
+          const left = Math.max(0, 10 - elapsed)
+          if (left >= 0 && left <= 10) {
+            setCountdownValue(left)
+            setShowCountdown(true)
+          }
+        }
       }
     }
 
     tick()
-    const iv = setInterval(tick, 500)
+    const iv = setInterval(tick, 200)
     return () => clearInterval(iv)
   }, [loading, gameId, gameCode, router])
 
