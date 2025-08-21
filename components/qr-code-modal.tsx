@@ -84,4 +84,4 @@ export function QRCodeModal({ open, onOpenChange, gameCode, joinUrl }: QRCodeMod
 }
 
 
-// hia
+
