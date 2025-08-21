@@ -35,7 +35,7 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
   const [gameId, setGameId] = useState<string>("")
   const [showCountdown, setShowCountdown] = useState(false)
   const [countdownValue, setCountdownValue] = useState(10)
-  const [shouldRedirect, setShouldRedirect] = useState(false)
+  const [isRedirecting, setIsRedirecting] = useState(false)
 
   useEffect(() => {
     const stored = localStorage.getItem("player")
@@ -76,7 +76,7 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
   }, [gameCode, router])
 
   useEffect(() => {
-    if (loading || !gameId) return
+    if (loading || !gameId || isRedirecting) return
 
     const tick = async () => {
       try {
@@ -112,23 +112,52 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
             console.warn("[v0] Invalid countdown value:", left)
           }
 
-          if (left <= 0) {
-            router.replace(`/play/${gameCode}`)
+          if (left <= 0 && !isRedirecting) {
+            console.log("[v0] Countdown finished, redirecting to play...")
+            setIsRedirecting(true)
+            setTimeout(() => {
+              router.replace(`/play/${gameCode}`)
+            }, 100)
+            return
           }
-        } else if (data.is_started) {
-          router.replace(`/play/${gameCode}`)
+        } else if (data.is_started && !isRedirecting) {
+          console.log("[v0] Game started without countdown, redirecting to play...")
+          setIsRedirecting(true)
+          setTimeout(() => {
+            router.replace(`/play/${gameCode}`)
+          }, 100)
+          return
         }
       } catch (error) {
         console.error("[v0] Error in countdown tick:", error)
-        const { data } = await supabase.from("games").select("countdown_start_at, is_started").eq("id", gameId).single()
+        if (!isRedirecting) {
+          const { data } = await supabase
+            .from("games")
+            .select("countdown_start_at, is_started")
+            .eq("id", gameId)
+            .single()
 
-        if (data?.countdown_start_at) {
-          const start = new Date(data.countdown_start_at).getTime()
-          const elapsed = Math.floor((Date.now() - start) / 1000)
-          const left = Math.max(0, 10 - elapsed)
-          if (left >= 0 && left <= 10) {
-            setCountdownValue(left)
-            setShowCountdown(true)
+          if (data?.countdown_start_at) {
+            const start = new Date(data.countdown_start_at).getTime()
+            const elapsed = Math.floor((Date.now() - start) / 1000)
+            const left = Math.max(0, 10 - elapsed)
+            if (left >= 0 && left <= 10) {
+              setCountdownValue(left)
+              setShowCountdown(true)
+            }
+            if (left <= 0) {
+              console.log("[v0] Fallback countdown finished, redirecting...")
+              setIsRedirecting(true)
+              setTimeout(() => {
+                router.replace(`/play/${gameCode}`)
+              }, 100)
+            }
+          } else if (data?.is_started) {
+            console.log("[v0] Fallback game started, redirecting...")
+            setIsRedirecting(true)
+            setTimeout(() => {
+              router.replace(`/play/${gameCode}`)
+            }, 100)
           }
         }
       }
@@ -137,7 +166,7 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
     tick()
     const iv = setInterval(tick, 200)
     return () => clearInterval(iv)
-  }, [loading, gameId, gameCode, router])
+  }, [loading, gameId, gameCode, router, isRedirecting])
 
   const handleExit = async () => {
     try {
@@ -226,6 +255,22 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
           <div className="bg-black/70 border-4 border-white p-6 rounded-lg">
             <p>Loading...</p>
           </div>
+        </div>
+      </>
+    )
+
+  if (isRedirecting)
+    return (
+      <>
+        <Background />
+        <div className="relative z-10 min-h-screen flex items-center justify-center font-mono text-white">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-black/80 border-4 border-green-500 p-12 rounded-lg text-center"
+          >
+            <p className="text-lg mt-4 opacity-80">Loading quiz...</p>
+          </motion.div>
         </div>
       </>
     )
