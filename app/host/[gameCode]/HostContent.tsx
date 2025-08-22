@@ -29,6 +29,7 @@ import { RulesDialog } from "@/components/rules-dialog"
 import { QRCodeModal } from "@/components/qr-code-modal"
 import { syncServerTime } from "@/lib/server-time"
 
+// === TYPES ===
 interface PlayerProgress {
   id: string
   name: string
@@ -44,25 +45,11 @@ interface HostContentProps {
   gameCode: string
 }
 
-// ✅ Memoised PodiumLeaderboard
+// === PODIUM LEADERBOARD ===
 const PodiumLeaderboard = React.memo(
-  ({
-    players,
-    onAnimationComplete,
-  }: {
-    players: PlayerProgress[]
-    onAnimationComplete: () => void
-  }) => {
+  ({ players, onAnimationComplete }: { players: PlayerProgress[]; onAnimationComplete: () => void }) => {
     const router = useRouter()
     const [hasAnimated, setHasAnimated] = useState(false)
-
-    const sorted = [...players].sort((a, b) => b.score - a.score)
-    const [second, first, third] = [
-      sorted[1] || { name: "No Player", score: 0, avatar: "/placeholder.svg" },
-      sorted[0] || { name: "No Player", score: 0, avatar: "/placeholder.svg" },
-      sorted[2] || { name: "No Player", score: 0, avatar: "/placeholder.svg" },
-    ]
-    const rest = sorted.slice(3)
 
     useEffect(() => {
       if (!hasAnimated) {
@@ -70,6 +57,96 @@ const PodiumLeaderboard = React.memo(
         onAnimationComplete()
       }
     }, [hasAnimated, onAnimationComplete])
+
+    const sorted = [...players].sort((a, b) => b.score - a.score)
+
+    // 1 player
+    if (sorted.length === 1) {
+      const [onlyPlayer] = sorted
+      return (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.8 }}
+          className="min-h-screen flex flex-col items-center justify-center p-4 font-mono text-white"
+        >
+          <motion.h1 className="text-5xl font-bold mb-12 text-yellow-300 drop-shadow-[4px_4px_0px_#000]">
+            🏆 CHAMPION 🏆
+          </motion.h1>
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="flex flex-col items-center"
+          >
+            <Image
+              src={onlyPlayer.avatar || "/placeholder.svg"}
+              alt={onlyPlayer.name}
+              width={160}
+              height={160}
+              className="rounded-full border-4 border-yellow-400 object-cover"
+            />
+            <p className="font-bold text-2xl mt-4">{onlyPlayer.name}</p>
+            <p className="text-lg font-bold text-yellow-300">{onlyPlayer.score} pts</p>
+          </motion.div>
+          <PixelButton color="blue" className="mt-12" onClick={() => router.push("/")}>
+            Back to Dashboard
+          </PixelButton>
+        </motion.div>
+      )
+    }
+
+    // 2 players
+    if (sorted.length === 2) {
+      const [second, first] = sorted
+      return (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.8 }}
+          className="min-h-screen flex flex-col items-center justify-center p-4 font-mono text-white"
+        >
+          <motion.h1 className="text-5xl font-bold mb-12 text-yellow-300 drop-shadow-[4px_4px_0px_#000]">
+            🏆 TOP 2 🏆
+          </motion.h1>
+          <div className="flex items-end justify-center gap-8">
+            <div className="flex flex-col items-center">
+              <Image
+                src={second.avatar || "/placeholder.svg"}
+                alt={second.name}
+                width={128}
+                height={128}
+                className="rounded-full border-4 border-gray-300 object-cover"
+              />
+              <p className="font-bold mt-2">{second.name}</p>
+              <p className="text-lg font-bold">{second.score} pts</p>
+            </div>
+            <div className="flex flex-col items-center">
+              <Image
+                src={first.avatar || "/placeholder.svg"}
+                alt={first.name}
+                width={160}
+                height={160}
+                className="rounded-full border-4 border-yellow-400 object-cover"
+              />
+              <p className="font-bold mt-2">{first.name}</p>
+              <p className="text-lg font-bold">{first.score} pts</p>
+            </div>
+          </div>
+          <PixelButton color="blue" className="mt-12" onClick={() => router.push("/")}>
+            Back to Dashboard
+          </PixelButton>
+        </motion.div>
+      )
+    }
+
+    // 3+ players
+    const [second, first, third] = [
+      sorted[1] || { name: "No Player", score: 0, avatar: "/placeholder.svg" },
+      sorted[0] || { name: "No Player", score: 0, avatar: "/placeholder.svg" },
+      sorted[2] || { name: "No Player", score: 0, avatar: "/placeholder.svg" },
+    ]
+    const rest = sorted.slice(3)
 
     return (
       <motion.div
@@ -97,6 +174,7 @@ const PodiumLeaderboard = React.memo(
               </div>
             ))}
           </div>
+
           {rest.length > 0 && (
             <div className="mt-8">
               <h2 className="text-xl mb-4">Others</h2>
@@ -110,6 +188,7 @@ const PodiumLeaderboard = React.memo(
               ))}
             </div>
           )}
+
           <PixelButton color="blue" className="mt-8" onClick={() => router.push("/")}>
             Back to Dashboard
           </PixelButton>
@@ -120,6 +199,7 @@ const PodiumLeaderboard = React.memo(
 )
 PodiumLeaderboard.displayName = "PodiumLeaderboard"
 
+// === HOST CONTENT COMPONENT ===
 export default function HostContent({ gameCode }: HostContentProps) {
   const router = useRouter()
   const [gameId, setGameId] = useState<string | null>(null)
@@ -144,7 +224,6 @@ export default function HostContent({ gameCode }: HostContentProps) {
   const [showQRModal, setShowQRModal] = useState(false)
 
   const { setGameCode, setQuizId, setIsHost, gameSettings, setGameSettings } = useGameStore()
-
   const [joinUrl, setJoinUrl] = useState("")
 
   useEffect(() => {
@@ -171,7 +250,9 @@ export default function HostContent({ gameCode }: HostContentProps) {
 
       const { data: gameData, error: gameErr } = await supabase
         .from("games")
-        .select("id, quiz_id, time_limit, question_count, is_started, finished, countdown_start_at")
+        .select(
+          "id, quiz_id, time_limit, question_count, is_started, finished, countdown_start_at",
+        )
         .eq("code", gameCode.toUpperCase())
         .single()
 
@@ -252,20 +333,15 @@ export default function HostContent({ gameCode }: HostContentProps) {
   const fetchPlayers = useCallback(async () => {
     if (!gameId) return
 
-    console.log("[v0] Fetching players for gameId:", gameId)
     const { data: playersData, error } = await supabase.from("players").select("*").eq("game_id", gameId)
-
     if (error) {
-      console.error("[v0] Error fetching players:", error)
+      console.error("Error fetching players:", error)
       return
     }
 
-    console.log("[v0] Players fetched:", playersData?.length || 0, "players")
     setPlayers(playersData || [])
-
     if (playersData) {
       const progressMap = new Map<string, PlayerProgress>()
-
       playersData.forEach((player: Player) => {
         progressMap.set(player.id, {
           id: player.id,
@@ -278,7 +354,6 @@ export default function HostContent({ gameCode }: HostContentProps) {
           rank: 0,
         })
       })
-
       const sorted = Array.from(progressMap.values()).sort((a, b) => b.score - a.score)
       const ranked = sorted.map((p, idx) => ({ ...p, rank: idx + 1 }))
       setPlayerProgress(ranked)
@@ -288,23 +363,18 @@ export default function HostContent({ gameCode }: HostContentProps) {
   useEffect(() => {
     if (!gameId) return
 
-    console.log("[v0] Setting up subscriptions for gameId:", gameId)
-
     const gameSubscription = supabase
       .channel("game_status")
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "games", filter: `id=eq.${gameId}` },
         (payload) => {
-          console.log("[v0] Game status update received:", payload)
           if (payload.new.finished) {
             setQuizStarted(false)
             setShowLeaderboard(true)
             toast.success("🎉 Quiz ended!")
           }
-          if (payload.new.is_started) {
-            setQuizStarted(true)
-          }
+          if (payload.new.is_started) setQuizStarted(true)
         },
       )
       .subscribe()
@@ -314,37 +384,9 @@ export default function HostContent({ gameCode }: HostContentProps) {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "players", filter: `game_id=eq.${gameId}` },
-        (payload) => {
-          console.log("[v0] Players table change received:", payload.eventType, payload)
-          if (payload.eventType === "DELETE") {
-            console.log("[v0] Player deleted, updating immediately")
-            const deletedPlayerId = payload.old?.id
-            if (deletedPlayerId) {
-              // Remove from current state immediately
-              setPlayers((prev) => prev.filter((p) => p.id !== deletedPlayerId))
-              setPlayerProgress((prev) => prev.filter((p) => p.id !== deletedPlayerId))
-            }
-
-            // Multiple fetch attempts to ensure database consistency
-            fetchPlayers()
-            setTimeout(() => fetchPlayers(), 100)
-            setTimeout(() => fetchPlayers(), 300)
-            setTimeout(() => {
-              fetchPlayers()
-              updatePlayerProgress()
-            }, 500)
-          } else if (payload.eventType === "INSERT") {
-            console.log("[v0] Player added, updating immediately")
-            fetchPlayers()
-            setTimeout(() => {
-              updatePlayerProgress()
-            }, 50)
-          } else {
-            setTimeout(() => {
-              fetchPlayers()
-              updatePlayerProgress()
-            }, 25)
-          }
+        () => {
+          fetchPlayers()
+          updatePlayerProgress()
         },
       )
       .subscribe()
@@ -354,10 +396,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "player_answers", filter: `game_id=eq.${gameId}` },
-        (payload) => {
-          console.log("[v0] Player answers change received:", payload)
-          updatePlayerProgress()
-        },
+        () => updatePlayerProgress(),
       )
       .subscribe()
 
@@ -367,7 +406,6 @@ export default function HostContent({ gameCode }: HostContentProps) {
     }, 50)
 
     return () => {
-      console.log("[v0] Cleaning up subscriptions")
       supabase.removeChannel(gameSubscription)
       supabase.removeChannel(playersSubscription)
       supabase.removeChannel(answersSubscription)
@@ -379,8 +417,11 @@ export default function HostContent({ gameCode }: HostContentProps) {
 
     let unsub = () => {}
     ;(async () => {
-      const { data } = await supabase.from("games").select("quiz_start_time, time_limit").eq("id", gameId).single()
-
+      const { data } = await supabase
+        .from("games")
+        .select("quiz_start_time, time_limit")
+        .eq("id", gameId)
+        .single()
       if (!data?.quiz_start_time) return
 
       const start = new Date(data.quiz_start_time).getTime()
@@ -413,34 +454,13 @@ export default function HostContent({ gameCode }: HostContentProps) {
         const elapsed = Math.floor((serverTime - start) / 1000)
         const left = Math.max(0, 10 - elapsed)
 
-        console.log(
-          "[v0] Host countdown sync - Server time:",
-          new Date(serverTime).toISOString(),
-          "Start:",
-          new Date(start).toISOString(),
-          "Elapsed:",
-          elapsed,
-          "Left:",
-          left,
-        )
-
         if (left >= 0 && left <= 10) {
           setCountdownLeft(left)
         } else {
-          console.warn("[v0] Invalid countdown value:", left, "- resetting to 0")
           setCountdownLeft(0)
         }
-      } catch (error) {
-        console.error("[v0] Error in countdown tick:", error)
-        const { data } = await supabase.from("games").select("countdown_start_at").eq("id", gameId).single()
-        if (data?.countdown_start_at) {
-          const start = new Date(data.countdown_start_at).getTime()
-          const elapsed = Math.floor((Date.now() - start) / 1000)
-          const left = Math.max(0, 10 - elapsed)
-          if (left >= 0 && left <= 10) {
-            setCountdownLeft(left)
-          }
-        }
+      } catch {
+        setCountdownLeft(0)
       }
     }
 
@@ -519,8 +539,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
 
         await supabase.from("players").delete().eq("game_id", gameId)
         toast.success("🚪 Game session ended")
-      } catch (error) {
-        console.error("Error ending game session:", error)
+      } catch {
         toast.error("❌ Failed to end session properly")
       }
     }
@@ -542,10 +561,15 @@ export default function HostContent({ gameCode }: HostContentProps) {
       case 3:
         return <Award className="w-5 h-5 text-amber-600" />
       default:
-        return <span className="w-5 h-5 flex items-center justify-center text-sm font-bold text-white/70">#{rank}</span>
+        return (
+          <span className="w-5 h-5 flex items-center justify-center text-sm font-bold text-white/70">
+            #{rank}
+          </span>
+        )
     }
   }
 
+  // === RENDER STATES ===
   if (!gameCode) {
     return (
       <div className="fixed inset-0 bg-black flex items-center justify-center font-mono text-white">
@@ -611,14 +635,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
           },
         }}
       />
-      <RulesDialog
-        open={false}
-        onOpenChange={() => {}}
-        quiz={quiz}
-        onStartGame={() => {}}
-        aria-describedby="rules-description"
-      />
-
+      <RulesDialog open={false} onOpenChange={() => {}} quiz={quiz} onStartGame={() => {}} />
       <QRCodeModal open={showQRModal} onOpenChange={setShowQRModal} gameCode={gameCode} joinUrl={joinUrl} />
 
       <div className="fixed inset-0 z-0 overflow-hidden bg-black">
@@ -942,49 +959,50 @@ export default function HostContent({ gameCode }: HostContentProps) {
             </motion.div>
           </div>
         )}
-      </div>
 
-      <AnimatePresence>
-        {showExitModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm"
-            onClick={() => setShowExitModal(false)}
-          >
+        <AnimatePresence>
+          {showExitModal && (
             <motion.div
-              initial={{ scale: 0.8, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.8, opacity: 0, y: 20 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="bg-[#1a1a2e] border-4 border-white font-mono text-white p-8 rounded-lg shadow-[8px_8px_0px_#000] max-w-md w-full mx-4 backdrop-blur-sm"
-              onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+              onClick={() => setShowExitModal(false)}
             >
-              <div className="text-center">
-                <div className="text-4xl mb-4">⚠️</div>
-                <h2 className="text-xl mb-4 font-bold">Exit Game?</h2>
-                <p className="text-sm mb-6 text-white/80">
-                  Are you sure you want to exit? The game session will end immediately and all players will be
-                  disconnected.
-                </p>
-                <div className="flex justify-center gap-4">
-                  <PixelButton color="gray" onClick={() => setShowExitModal(false)}>
-                    Cancel
-                  </PixelButton>
-                  <PixelButton color="red" onClick={handleExitGame}>
-                    End Session
-                  </PixelButton>
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.8, opacity: 0, y: 20 }}
+                transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                className="bg-[#1a1a2e] border-4 border-white font-mono text-white p-8 rounded-lg shadow-[8px_8px_0px_#000] max-w-md w-full mx-4 backdrop-blur-sm"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="text-center">
+                  <div className="text-4xl mb-4">⚠️</div>
+                  <h2 className="text-xl mb-4 font-bold">Exit Game?</h2>
+                  <p className="text-sm mb-6 text-white/80">
+                    Are you sure you want to exit? The game session will end immediately and all players will be
+                    disconnected.
+                  </p>
+                  <div className="flex justify-center gap-4">
+                    <PixelButton color="gray" onClick={() => setShowExitModal(false)}>
+                      Cancel
+                    </PixelButton>
+                    <PixelButton color="red" onClick={handleExitGame}>
+                      End Session
+                    </PixelButton>
+                  </div>
                 </div>
-              </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>
+      </div>
     </>
   )
 }
 
+// === STATIC BACKGROUND ===
 const StaticBackground = () => (
   <div className="fixed inset-0 z-0 overflow-hidden bg-black">
     <div className="absolute inset-0">
@@ -1053,9 +1071,25 @@ const StaticBackground = () => (
         }}
       />
     ))}
+
+    {Array.from({ length: 3 }).map((_, i) => (
+      <div
+        key={`shooting-star-${i}`}
+        className="absolute bg-gradient-to-r from-white to-transparent h-px opacity-70"
+        style={{
+          left: `${Math.random() * 100}%`,
+          top: `${Math.random() * 100}%`,
+          width: `${Math.random() * 100 + 50}px`,
+          transform: `rotate(${Math.random() * 360}deg)`,
+          animation: `shooting-star ${Math.random() * 8 + 4}s infinite linear`,
+          animationDelay: `${Math.random() * 5}s`,
+        }}
+      />
+    ))}
   </div>
 )
 
+// === PIXEL BUTTON ===
 function PixelButton({
   color = "blue",
   size = "md",
@@ -1087,27 +1121,3 @@ function PixelButton({
     </button>
   )
 }
-
-const styles = `
-  @keyframes twinkle {
-    0% { opacity: 0.3; }
-    100% { opacity: 1; }
-  }
-  
-  @keyframes shooting-star {
-    0% { 
-      opacity: 0;
-      transform: translateX(-100px) translateY(-100px) rotate(45deg);
-    }
-    10% { 
-      opacity: 1;
-    }
-    90% { 
-      opacity: 1;
-    }
-    100% { 
-      opacity: 0;
-      transform: translateX(100px) translateY(100px) rotate(45deg);
-    }
-  }
-`
