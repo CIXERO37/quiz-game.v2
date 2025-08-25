@@ -44,6 +44,9 @@ interface HostContentProps {
   gameCode: string
 }
 
+// Tambahkan ini untuk mencegah SSR clock-skew
+export const dynamic = "force-dynamic"
+
 // ✅ Memoised PodiumLeaderboard
 const PodiumLeaderboard = React.memo(
   ({
@@ -481,7 +484,14 @@ export default function HostContent({ gameCode }: HostContentProps) {
         const start = new Date(data.countdown_start_at).getTime()
         const serverTime = await syncServerTime()
         const elapsed = Math.floor((serverTime - start) / 1000)
-        const left = Math.max(0, 10 - elapsed)
+
+        // Jika sudah lewat 10 detik, langsung set 0
+        if (elapsed >= 10) {
+          setCountdownLeft(0)
+          return
+        }
+
+        const left = 10 - elapsed
 
         console.log(
           "[v0] Host countdown sync - Server time:",
@@ -1163,19 +1173,19 @@ const styles = `
     0% { opacity: 0.3; }
     100% { opacity: 1; }
   }
-  
+
   @keyframes shooting-star {
-    0% { 
+    0% {
       opacity: 0;
       transform: translateX(-100px) translateY(-100px) rotate(45deg);
     }
-    10% { 
+    10% {
       opacity: 1;
     }
-    90% { 
+    90% {
       opacity: 1;
     }
-    100% { 
+    100% {
       opacity: 0;
       transform: translateX(100px) translateY(100px) rotate(45deg);
     }
