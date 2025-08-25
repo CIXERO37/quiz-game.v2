@@ -152,6 +152,61 @@ export default function HostContent({ gameCode }: HostContentProps) {
     setJoinUrl(`${window.location.origin}/?code=${gameCode}`)
   }, [gameCode])
 
+  // Monitor host leaving the page and end game session
+  useEffect(() => {
+    const handleBeforeUnload = async () => {
+      if (gameId) {
+        try {
+          // End the game session when host leaves
+          await supabase
+            .from("games")
+            .update({
+              finished: true,
+              is_started: false,
+              status: "ended",
+              quiz_start_time: null,
+            })
+            .eq("id", gameId)
+          
+          // Clean up all players
+          await supabase.from("players").delete().eq("game_id", gameId)
+        } catch (error) {
+          console.error("Error ending game session on host leave:", error)
+        }
+      }
+    }
+
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'hidden' && gameId) {
+        try {
+          // End the game session when host switches tabs or minimizes
+          await supabase
+            .from("games")
+            .update({
+              finished: true,
+              is_started: false,
+              status: "ended",
+              quiz_start_time: null,
+            })
+            .eq("id", gameId)
+          
+          // Clean up all players
+          await supabase.from("players").delete().eq("game_id", gameId)
+        } catch (error) {
+          console.error("Error ending game session on host visibility change:", error)
+        }
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [gameId])
+
   const calculateRanking = (players: PlayerProgress[]): PlayerProgress[] => {
     return players
       .sort((a, b) => b.score - a.score)
@@ -246,6 +301,18 @@ export default function HostContent({ gameCode }: HostContentProps) {
       await supabase.from("games").update({ finished: true, is_started: false }).eq("id", gameId)
       setShowLeaderboard(true)
       toast.success("🎉 All players have completed the quiz!")
+    }
+
+    // Check if all players have left and end session
+    if (ranked.length === 0 && quizStarted && !showLeaderboard) {
+      await supabase.from("games").update({ 
+        finished: true, 
+        is_started: false,
+        status: "ended",
+        quiz_start_time: null 
+      }).eq("id", gameId)
+      setShowLeaderboard(true)
+      toast.info("🏁 All players have left. Game session ended.")
     }
   }, [gameId, quiz, showLeaderboard, gameSettings.questionCount])
 

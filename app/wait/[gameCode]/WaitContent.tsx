@@ -139,6 +139,57 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
     return () => clearInterval(iv)
   }, [loading, gameId, gameCode, router])
 
+  // Monitor player leaving the page and clean up
+  useEffect(() => {
+    const handleBeforeUnload = async () => {
+      if (gameId && playerName) {
+        try {
+          await cleanupPresence()
+          
+          // Remove player from database
+          await supabase
+            .from("players")
+            .delete()
+            .eq("game_id", gameId)
+            .eq("name", playerName)
+          
+          clearGame?.()
+          localStorage.removeItem("player")
+        } catch (error) {
+          console.error("Error cleaning up player on leave:", error)
+        }
+      }
+    }
+
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'hidden' && gameId && playerName) {
+        try {
+          await cleanupPresence()
+          
+          // Remove player from database
+          await supabase
+            .from("players")
+            .delete()
+            .eq("game_id", gameId)
+            .eq("name", playerName)
+          
+          clearGame?.()
+          localStorage.removeItem("player")
+        } catch (error) {
+          console.error("Error cleaning up player on visibility change:", error)
+        }
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [gameId, playerName, clearGame])
+
   const handleExit = async () => {
     try {
       console.log("[v0] Starting exit process for player:", playerName, "in game:", gameId)
