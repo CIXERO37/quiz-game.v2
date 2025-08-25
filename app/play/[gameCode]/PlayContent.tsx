@@ -346,6 +346,31 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
     };
   }, [gameCode, isQuizStarted]);
 
+  // Fallback polling if Realtime is not enabled in production: detect start and quiz_start_time
+  useEffect(() => {
+    if (!gameCode || isQuizStarted) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const { data } = await supabase
+          .from("games")
+          .select("is_started, quiz_start_time")
+          .eq("code", gameCode.toUpperCase())
+          .single();
+        if (!cancelled && data?.is_started && data?.quiz_start_time) {
+          setIsQuizStarted(true);
+        }
+      } catch {}
+    };
+    const iv = setInterval(poll, 500);
+    // run once immediately
+    poll();
+    return () => {
+      cancelled = true;
+      clearInterval(iv);
+    };
+  }, [gameCode, isQuizStarted]);
+
   useEffect(() => {
     if (!gameCode) return;
 
