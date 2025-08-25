@@ -10,6 +10,7 @@ import { Progress } from "@/components/ui/progress"
 import SpaceDodge from "@/components/space-dodge"
 import { useGameStore } from "@/lib/store"
 import { supabase } from "@/lib/supabase"
+import { syncServerTime } from "@/lib/server-time"
 import type { Quiz, Question } from "@/lib/types"
 import Image from "next/image"
 import { toast } from "sonner"
@@ -383,11 +384,16 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
         return;
       }
 
+      // Get server time offset to avoid client clock issues (Vercel/production)
+      const serverNow = await syncServerTime();
+      const clientOffset = serverNow - Date.now();
+
       const start = new Date(data.quiz_start_time).getTime();
       const limitMs = data.time_limit * 1000;
 
       const tick = () => {
-        const remain = Math.max(0, start + limitMs - Date.now());
+        const now = Date.now() + clientOffset;
+        const remain = Math.max(0, start + limitMs - now);
         setTimeLeft(Math.floor(remain / 1000));
         if (remain <= 0) {
           setShouldNavigate(true);
@@ -775,5 +781,3 @@ function Background() {
     </div>
   );
 }
-
-// refrsh
