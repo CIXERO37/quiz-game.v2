@@ -145,14 +145,10 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
       if (gameId && playerName) {
         try {
           await cleanupPresence()
-          
+
           // Remove player from database
-          await supabase
-            .from("players")
-            .delete()
-            .eq("game_id", gameId)
-            .eq("name", playerName)
-          
+          await supabase.from("players").delete().eq("game_id", gameId).eq("name", playerName)
+
           clearGame?.()
           localStorage.removeItem("player")
         } catch (error) {
@@ -162,17 +158,13 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
     }
 
     const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'hidden' && gameId && playerName) {
+      if (document.visibilityState === "hidden" && gameId && playerName) {
         try {
           await cleanupPresence()
-          
+
           // Remove player from database
-          await supabase
-            .from("players")
-            .delete()
-            .eq("game_id", gameId)
-            .eq("name", playerName)
-          
+          await supabase.from("players").delete().eq("game_id", gameId).eq("name", playerName)
+
           clearGame?.()
           localStorage.removeItem("player")
         } catch (error) {
@@ -181,12 +173,12 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
       }
     }
 
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    document.addEventListener("visibilitychange", handleVisibilityChange)
 
     return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener("beforeunload", handleBeforeUnload)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
     }
   }, [gameId, playerName, clearGame])
 

@@ -167,7 +167,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
               quiz_start_time: null,
             })
             .eq("id", gameId)
-          
+
           // Clean up all players
           await supabase.from("players").delete().eq("game_id", gameId)
         } catch (error) {
@@ -177,7 +177,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
     }
 
     const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'hidden' && gameId) {
+      if (document.visibilityState === "hidden" && gameId) {
         try {
           // End the game session when host switches tabs or minimizes
           await supabase
@@ -189,7 +189,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
               quiz_start_time: null,
             })
             .eq("id", gameId)
-          
+
           // Clean up all players
           await supabase.from("players").delete().eq("game_id", gameId)
         } catch (error) {
@@ -198,12 +198,12 @@ export default function HostContent({ gameCode }: HostContentProps) {
       }
     }
 
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    document.addEventListener("visibilitychange", handleVisibilityChange)
 
     return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener("beforeunload", handleBeforeUnload)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
     }
   }, [gameId])
 
@@ -305,12 +305,15 @@ export default function HostContent({ gameCode }: HostContentProps) {
 
     // Check if all players have left and end session
     if (ranked.length === 0 && quizStarted && !showLeaderboard) {
-      await supabase.from("games").update({ 
-        finished: true, 
-        is_started: false,
-        status: "ended",
-        quiz_start_time: null 
-      }).eq("id", gameId)
+      await supabase
+        .from("games")
+        .update({
+          finished: true,
+          is_started: false,
+          status: "ended",
+          quiz_start_time: null,
+        })
+        .eq("id", gameId)
       setShowLeaderboard(true)
       toast.info("🏁 All players have left. Game session ended.")
     }
