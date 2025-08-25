@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef, useCallback } from "react"
 import { motion } from "framer-motion"
 import { useRouter } from "next/navigation"
 import { useGameStore } from "@/lib/store"
@@ -36,6 +36,32 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
   const [showCountdown, setShowCountdown] = useState(false)
   const [countdownValue, setCountdownValue] = useState(10)
   const [shouldRedirect, setShouldRedirect] = useState(false)
+  const countdownCleanupRef = useRef<() => void>(() => {})
+
+  const startCountdown = useCallback(async (startMs: number) => {
+    // Clear any existing interval
+    try { countdownCleanupRef.current?.() } catch {}
+
+    const serverNow = await syncServerTime()
+    const offset = serverNow - Date.now()
+
+    const tick = () => {
+      const now = Date.now() + offset
+      const elapsed = Math.floor((now - startMs) / 1000)
+      const left = Math.max(0, 10 - elapsed)
+      if (left >= 0 && left <= 10) {
+        setCountdownValue(left)
+        setShowCountdown(true)
+      }
+      if (left <= 0) {
+        router.replace(`/play/${gameCode}`)
+      }
+    }
+
+    tick()
+    const iv = setInterval(tick, 200)
+    countdownCleanupRef.current = () => clearInterval(iv)
+  }, [router, gameCode])
 
   useEffect(() => {
     const stored = localStorage.getItem("player")
@@ -78,8 +104,9 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
   useEffect(() => {
     if (loading || !gameId) return
 
-    const tick = async () => {
+    ;(async () => {
       try {
+        // Fetch countdown start and compute a one-time server offset
         const { data, error } = await supabase
           .from("games")
           .select("countdown_start_at, is_started")
@@ -90,38 +117,18 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
 
         if (data.countdown_start_at) {
           const start = new Date(data.countdown_start_at).getTime()
-          const serverTime = await syncServerTime()
-          const elapsed = Math.floor((serverTime - start) / 1000)
-          const left = Math.max(0, 10 - elapsed)
-
-          console.log(
-            "[v0] Player countdown sync - Server time:",
-            new Date(serverTime).toISOString(),
-            "Start:",
-            new Date(start).toISOString(),
-            "Elapsed:",
-            elapsed,
-            "Left:",
-            left,
-          )
-
-          if (left >= 0 && left <= 10) {
-            setCountdownValue(left)
-            setShowCountdown(true)
-          } else {
-            console.warn("[v0] Invalid countdown value:", left)
-          }
-
-          if (left <= 0) {
-            router.replace(`/play/${gameCode}`)
-          }
+          await startCountdown(start)
         } else if (data.is_started) {
           router.replace(`/play/${gameCode}`)
         }
       } catch (error) {
-        console.error("[v0] Error in countdown tick:", error)
-        const { data } = await supabase.from("games").select("countdown_start_at, is_started").eq("id", gameId).single()
-
+        console.error("[v0] Error initializing countdown:", error)
+        // Fallback: poll once using client time
+        const { data } = await supabase
+          .from("games")
+          .select("countdown_start_at, is_started")
+          .eq("id", gameId)
+          .single()
         if (data?.countdown_start_at) {
           const start = new Date(data.countdown_start_at).getTime()
           const elapsed = Math.floor((Date.now() - start) / 1000)
@@ -130,14 +137,41 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
             setCountdownValue(left)
             setShowCountdown(true)
           }
+          if (left <= 0) router.replace(`/play/${gameCode}`)
         }
       }
+    })()
+    return () => {
+      try { countdownCleanupRef.current?.() } catch {}
     }
+  }, [loading, gameId, gameCode, router, startCountdown])
 
-    tick()
-    const iv = setInterval(tick, 200)
-    return () => clearInterval(iv)
-  }, [loading, gameId, gameCode, router])
+  // Realtime update: auto-start countdown without manual refresh
+  useEffect(() => {
+    if (!gameId) return
+
+    const channel = supabase
+      .channel("wait-game-updates")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "games", filter: `id=eq.${gameId}` },
+        async (payload) => {
+          const startAt = payload.new?.countdown_start_at
+          const isStarted = payload.new?.is_started
+          if (startAt) {
+            await startCountdown(new Date(startAt).getTime())
+          } else if (isStarted) {
+            router.replace(`/play/${gameCode}`)
+          }
+        },
+      )
+      .subscribe()
+
+    return () => {
+      try { supabase.removeChannel(channel) } catch {}
+      try { countdownCleanupRef.current?.() } catch {}
+    }
+  }, [gameId, gameCode, router, startCountdown])
 
   const handleExit = async () => {
     try {
