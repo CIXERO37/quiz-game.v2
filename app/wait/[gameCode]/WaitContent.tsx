@@ -39,6 +39,7 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
   const [showCountdown, setShowCountdown] = useState(false)
   const [countdownValue, setCountdownValue] = useState(0)
   const [shouldRedirect, setShouldRedirect] = useState(false)
+  const [isRedirecting, setIsRedirecting] = useState(false)
 
   useEffect(() => {
     const stored = localStorage.getItem("player")
@@ -79,7 +80,7 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
   }, [gameCode, router])
 
   useEffect(() => {
-    if (loading || !gameId) return
+    if (loading || !gameId || isRedirecting) return
 
     const tick = async () => {
       try {
@@ -106,7 +107,7 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
 
           if (elapsed >= 10) {
             console.log("[v0] Countdown finished, redirecting to play")
-            setShowCountdown(false)
+            setIsRedirecting(true)
             router.replace(`/play/${gameCode}`)
             return
           }
@@ -129,16 +130,14 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
             setShowCountdown(true)
           }
 
-          if (left === 0 && !shouldRedirect) {
-            console.log("[v0] Countdown reached 0, setting redirect flag")
-            setShouldRedirect(true)
-            setTimeout(() => {
-              console.log("[v0] Executing redirect to play")
-              router.replace(`/play/${gameCode}`)
-            }, 500)
+          if (left === 0) {
+            console.log("[v0] Countdown reached 0, redirecting immediately")
+            setIsRedirecting(true)
+            router.replace(`/play/${gameCode}`)
           }
         } else if (data.is_started) {
           console.log("[v0] Game already started, redirecting")
+          setIsRedirecting(true)
           router.replace(`/play/${gameCode}`)
         }
       } catch (error) {
@@ -151,44 +150,22 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
             .eq("id", gameId)
             .single()
 
-          if (data?.countdown_start_at) {
+          if (data?.is_started) {
+            console.log("[v0] Fallback: game started, redirecting")
+            setIsRedirecting(true)
+            router.replace(`/play/${gameCode}`)
+          } else if (data?.countdown_start_at) {
             const start = new Date(data.countdown_start_at).getTime()
             const elapsed = Math.floor((Date.now() - start) / 1000)
-            const left = Math.max(0, Math.min(10, 10 - elapsed))
 
-            console.log("[v0] Fallback countdown calculation:", { elapsed, left })
-
-            if (elapsed >= 10 && !shouldRedirect) {
+            if (elapsed >= 10) {
               console.log("[v0] Fallback: countdown finished, redirecting")
-              setShouldRedirect(true)
+              setIsRedirecting(true)
               router.replace(`/play/${gameCode}`)
-              return
             }
-
-            if (left >= 0 && left <= 10) {
-              setCountdownValue(left)
-              setShowCountdown(true)
-
-              if (left === 0 && !shouldRedirect) {
-                console.log("[v0] Fallback: countdown reached 0, redirecting")
-                setShouldRedirect(true)
-                setTimeout(() => {
-                  router.replace(`/play/${gameCode}`)
-                }, 500)
-              }
-            }
-          } else if (data?.is_started) {
-            console.log("[v0] Fallback: game started, redirecting")
-            router.replace(`/play/${gameCode}`)
           }
         } catch (fallbackError) {
           console.error("[v0] Fallback countdown also failed:", fallbackError)
-          if (showCountdown && countdownValue === 0) {
-            console.log("[v0] Final safety net: forcing redirect")
-            setTimeout(() => {
-              router.replace(`/play/${gameCode}`)
-            }, 1000)
-          }
         }
       }
     }
@@ -196,7 +173,7 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
     tick()
     const iv = setInterval(tick, 200)
     return () => clearInterval(iv)
-  }, [loading, gameId, gameCode, router, shouldRedirect, showCountdown, countdownValue])
+  }, [loading, gameId, gameCode, router, isRedirecting])
 
   const handleExit = async () => {
     try {
