@@ -433,6 +433,12 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
     return unsub;
   }, [isQuizStarted, gameSettings, gameCode]);
 
+  // When timer hits zero, navigate player to result page (production-safe)
+  useEffect(() => {
+    if (!shouldNavigate) return;
+    router.replace(`/result/${gameCode}`);
+  }, [shouldNavigate, router, gameCode]);
+
   const question = allQuestions[currentQuestion];
 
   const getChoiceLabel = (index: number) => String.fromCharCode(65 + index);
