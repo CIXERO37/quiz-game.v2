@@ -25,6 +25,9 @@ function Background() {
   )
 }
 
+// Tambahkan ini untuk disable SSR pada halaman ini
+export const dynamic = "force-dynamic"
+
 export default function WaitContent({ gameCode }: WaitContentProps) {
   const router = useRouter()
   const { clearGame } = useGameStore()
@@ -92,7 +95,14 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
           const start = new Date(data.countdown_start_at).getTime()
           const serverTime = await syncServerTime()
           const elapsed = Math.floor((serverTime - start) / 1000)
-          const left = Math.max(0, 10 - elapsed)
+
+          // Jika sudah lewat 10 detik, langsung redirect
+          if (elapsed >= 10) {
+            router.replace(`/play/${gameCode}`)
+            return
+          }
+
+          const left = 10 - elapsed
 
           console.log(
             "[v0] Player countdown sync - Server time:",
@@ -105,16 +115,8 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
             left,
           )
 
-          if (left >= 0 && left <= 10) {
-            setCountdownValue(left)
-            setShowCountdown(true)
-          } else {
-            console.warn("[v0] Invalid countdown value:", left)
-          }
-
-          if (left <= 0) {
-            router.replace(`/play/${gameCode}`)
-          }
+          setCountdownValue(left)
+          setShowCountdown(true)
         } else if (data.is_started) {
           router.replace(`/play/${gameCode}`)
         }
@@ -138,6 +140,49 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
     const iv = setInterval(tick, 200)
     return () => clearInterval(iv)
   }, [loading, gameId, gameCode, router])
+
+  // Monitor player leaving the page and clean up
+  useEffect(() => {
+    const handleBeforeUnload = async () => {
+      if (gameId && playerName) {
+        try {
+          await cleanupPresence()
+
+          // Remove player from database
+          await supabase.from("players").delete().eq("game_id", gameId).eq("name", playerName)
+
+          clearGame?.()
+          localStorage.removeItem("player")
+        } catch (error) {
+          console.error("Error cleaning up player on leave:", error)
+        }
+      }
+    }
+
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === "hidden" && gameId && playerName) {
+        try {
+          await cleanupPresence()
+
+          // Remove player from database
+          await supabase.from("players").delete().eq("game_id", gameId).eq("name", playerName)
+
+          clearGame?.()
+          localStorage.removeItem("player")
+        } catch (error) {
+          console.error("Error cleaning up player on visibility change:", error)
+        }
+      }
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
+  }, [gameId, playerName, clearGame])
 
   const handleExit = async () => {
     try {
