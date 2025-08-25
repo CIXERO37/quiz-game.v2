@@ -115,7 +115,7 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
           if (left <= 0) {
             router.replace(`/play/${gameCode}`)
           }
-        } else if (data.is_started && !data.countdown_start_at) {
+        } else if (data.is_started) {
           router.replace(`/play/${gameCode}`)
         }
       } catch (error) {
