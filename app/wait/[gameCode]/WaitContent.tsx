@@ -25,6 +25,9 @@ function Background() {
   )
 }
 
+// Tambahkan ini untuk disable SSR pada halaman ini
+export const dynamic = "force-dynamic"
+
 export default function WaitContent({ gameCode }: WaitContentProps) {
   const router = useRouter()
   const { clearGame } = useGameStore()
@@ -35,7 +38,7 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
   const [gameId, setGameId] = useState<string>("")
   const [showCountdown, setShowCountdown] = useState(false)
   const [countdownValue, setCountdownValue] = useState(10)
-  const [isRedirecting, setIsRedirecting] = useState(false)
+  const [shouldRedirect, setShouldRedirect] = useState(false)
 
   useEffect(() => {
     const stored = localStorage.getItem("player")
@@ -76,7 +79,7 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
   }, [gameCode, router])
 
   useEffect(() => {
-    if (loading || !gameId || isRedirecting) return
+    if (loading || !gameId) return
 
     const tick = async () => {
       try {
@@ -92,7 +95,14 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
           const start = new Date(data.countdown_start_at).getTime()
           const serverTime = await syncServerTime()
           const elapsed = Math.floor((serverTime - start) / 1000)
-          const left = Math.max(0, 10 - elapsed)
+
+          // Jika sudah lewat 10 detik, langsung redirect
+          if (elapsed >= 10) {
+            router.replace(`/play/${gameCode}`)
+            return
+          }
+
+          const left = 10 - elapsed
 
           console.log(
             "[v0] Player countdown sync - Server time:",
@@ -105,59 +115,22 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
             left,
           )
 
-          if (left >= 0 && left <= 10) {
-            setCountdownValue(left)
-            setShowCountdown(true)
-          } else {
-            console.warn("[v0] Invalid countdown value:", left)
-          }
-
-          if (left <= 0 && !isRedirecting) {
-            console.log("[v0] Countdown finished, redirecting to play...")
-            setIsRedirecting(true)
-            setTimeout(() => {
-              router.replace(`/play/${gameCode}`)
-            }, 100)
-            return
-          }
-        } else if (data.is_started && !isRedirecting) {
-          console.log("[v0] Game started without countdown, redirecting to play...")
-          setIsRedirecting(true)
-          setTimeout(() => {
-            router.replace(`/play/${gameCode}`)
-          }, 100)
-          return
+          setCountdownValue(left)
+          setShowCountdown(true)
+        } else if (data.is_started) {
+          router.replace(`/play/${gameCode}`)
         }
       } catch (error) {
         console.error("[v0] Error in countdown tick:", error)
-        if (!isRedirecting) {
-          const { data } = await supabase
-            .from("games")
-            .select("countdown_start_at, is_started")
-            .eq("id", gameId)
-            .single()
+        const { data } = await supabase.from("games").select("countdown_start_at, is_started").eq("id", gameId).single()
 
-          if (data?.countdown_start_at) {
-            const start = new Date(data.countdown_start_at).getTime()
-            const elapsed = Math.floor((Date.now() - start) / 1000)
-            const left = Math.max(0, 10 - elapsed)
-            if (left >= 0 && left <= 10) {
-              setCountdownValue(left)
-              setShowCountdown(true)
-            }
-            if (left <= 0) {
-              console.log("[v0] Fallback countdown finished, redirecting...")
-              setIsRedirecting(true)
-              setTimeout(() => {
-                router.replace(`/play/${gameCode}`)
-              }, 100)
-            }
-          } else if (data?.is_started) {
-            console.log("[v0] Fallback game started, redirecting...")
-            setIsRedirecting(true)
-            setTimeout(() => {
-              router.replace(`/play/${gameCode}`)
-            }, 100)
+        if (data?.countdown_start_at) {
+          const start = new Date(data.countdown_start_at).getTime()
+          const elapsed = Math.floor((Date.now() - start) / 1000)
+          const left = Math.max(0, 10 - elapsed)
+          if (left >= 0 && left <= 10) {
+            setCountdownValue(left)
+            setShowCountdown(true)
           }
         }
       }
@@ -166,7 +139,50 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
     tick()
     const iv = setInterval(tick, 200)
     return () => clearInterval(iv)
-  }, [loading, gameId, gameCode, router, isRedirecting])
+  }, [loading, gameId, gameCode, router])
+
+  // Monitor player leaving the page and clean up
+  useEffect(() => {
+    const handleBeforeUnload = async () => {
+      if (gameId && playerName) {
+        try {
+          await cleanupPresence()
+
+          // Remove player from database
+          await supabase.from("players").delete().eq("game_id", gameId).eq("name", playerName)
+
+          clearGame?.()
+          localStorage.removeItem("player")
+        } catch (error) {
+          console.error("Error cleaning up player on leave:", error)
+        }
+      }
+    }
+
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === "hidden" && gameId && playerName) {
+        try {
+          await cleanupPresence()
+
+          // Remove player from database
+          await supabase.from("players").delete().eq("game_id", gameId).eq("name", playerName)
+
+          clearGame?.()
+          localStorage.removeItem("player")
+        } catch (error) {
+          console.error("Error cleaning up player on visibility change:", error)
+        }
+      }
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
+  }, [gameId, playerName, clearGame])
 
   const handleExit = async () => {
     try {
@@ -255,22 +271,6 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
           <div className="bg-black/70 border-4 border-white p-6 rounded-lg">
             <p>Loading...</p>
           </div>
-        </div>
-      </>
-    )
-
-  if (isRedirecting)
-    return (
-      <>
-        <Background />
-        <div className="relative z-10 min-h-screen flex items-center justify-center font-mono text-white">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.5 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-black/80 border-4 border-green-500 p-12 rounded-lg text-center"
-          >
-            <p className="text-lg mt-4 opacity-80">Loading quiz...</p>
-          </motion.div>
         </div>
       </>
     )

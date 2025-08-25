@@ -2,7 +2,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useRouter } from "next/navigation"
 import { Clock } from "lucide-react"
@@ -45,7 +45,7 @@ interface PlayContentProps {
 
 export default function PlayContent({ gameCode }: PlayContentProps) {
   const router = useRouter()
-  const { currentQuestion, score, correctAnswers, setCurrentQuestion, addScore, incrementCorrectAnswers, setGameId, gameId, playerId } =
+  const { currentQuestion, score, correctAnswers, setCurrentQuestion, addScore, incrementCorrectAnswers, setGameId, gameId, playerId, setCorrectAnswers, setScore } =
     useGameStore()
 
   const [timeLeft, setTimeLeft] = useState(0)
@@ -60,6 +60,28 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
   const [showMiniGame, setShowMiniGame] = useState(false)
   const [gameSettings, setGameSettings] = useState<{ timeLimit: number; questionCount: number } | null>(null)
   const [allQuestions, setAllQuestions] = useState<Question[]>([])
+  const [progressRestored, setProgressRestored] = useState(false)
+  const [storeHydrated, setStoreHydrated] = useState(false)
+  const [sessionSeed, setSessionSeed] = useState<number | null>(null)
+
+  // Function to regenerate questions with the same seed
+  const regenerateQuestionsWithSeed = useCallback((seed: number, quizData: any, questionCount: number) => {
+    return [...quizData.questions]
+      .sort((a: any, b: any) => {
+        const aHash = (a.id + seed) % 1000;
+        const bHash = (b.id + seed) % 1000;
+        return aHash - bHash;
+      })
+      .slice(0, questionCount)
+      .map((q: any) => ({
+        ...q,
+        choices: [...q.choices].sort((a: any, b: any) => {
+          const aHash = (a.id + seed) % 1000;
+          const bHash = (b.id + seed) % 1000;
+          return aHash - bHash;
+        }),
+      }));
+  }, []);
 
   useEffect(() => {
     const fetchGame = async () => {
@@ -120,14 +142,33 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
 
       setQuiz(quizData as Quiz);
 
-      // Shuffle dan simpan semua soal
-      const shuffled = [...quizData.questions]
-        .sort(() => Math.random() - 0.5)
-        .slice(0, gameData.question_count)
-        .map((q: any) => ({
-          ...q,
-          choices: [...q.choices].sort(() => Math.random() - 0.5),
-        }));
+      // Check for existing session seed in localStorage
+      const existingSeed = localStorage.getItem(`session-seed-${gameData.id}-${playerId}`);
+      let seed: number;
+      
+      if (existingSeed) {
+        // Use existing seed for consistency across refreshes
+        seed = parseInt(existingSeed);
+        setSessionSeed(seed);
+        console.log(`Using existing session seed: ${seed}`);
+      } else {
+        // Create unique seed for each session and player combination
+        const gameIdForSeed = gameData.id;
+        const playerIdForSeed = playerId || 'anonymous';
+        const timestamp = Date.now();
+        
+        // Create a unique seed combining game ID, player ID, and timestamp
+        const combinedSeed = `${gameIdForSeed}-${playerIdForSeed}-${timestamp}`;
+        seed = combinedSeed.split('').reduce((a: number, b: string) => a + b.charCodeAt(0), 0);
+        
+        // Store the session seed for consistency
+        setSessionSeed(seed);
+        localStorage.setItem(`session-seed-${gameData.id}-${playerId}`, seed.toString());
+        console.log(`Created new session seed: ${seed}`);
+      }
+      
+      // Generate questions using the seed
+      const shuffled = regenerateQuestionsWithSeed(seed, quizData, gameData.question_count);
       setAllQuestions(shuffled);
 
       if (gameData.is_started) {
@@ -135,12 +176,107 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
       } else {
         setIsQuizStarted(false);
       }
-      setCurrentQuestion(0);
+      
       setLoading(false);
     }
 
     fetchGame();
   }, [gameCode, router, setCurrentQuestion, setGameId]);
+
+  // Check when store is hydrated and restore progress
+  useEffect(() => {
+    if (!storeHydrated && !loading && gameId && playerId && isQuizStarted) {
+      setStoreHydrated(true);
+      
+      // Now restore progress from database
+      const restoreProgress = async () => {
+        try {
+          const { data: playerAnswers, error: answersError } = await supabase
+            .from("player_answers")
+            .select("question_index, points_earned, is_correct")
+            .eq("game_id", gameId)
+            .eq("player_id", playerId)
+            .not("question_index", "eq", -1)
+            .order("question_index", { ascending: true })
+
+          if (answersError) {
+            console.error("Error fetching player answers:", answersError);
+            setProgressRestored(true);
+          } else if (playerAnswers && playerAnswers.length > 0) {
+            const lastAnsweredIndex = Math.max(...playerAnswers.map(a => a.question_index));
+            const nextQuestion = lastAnsweredIndex + 1;
+            
+            if (nextQuestion < (gameSettings?.questionCount || 15)) {
+              setCurrentQuestion(nextQuestion);
+              console.log(`Restored progress: player at question ${nextQuestion}/${gameSettings?.questionCount}`);
+              
+              const totalScore = playerAnswers.reduce((sum, answer) => sum + (answer.points_earned || 0), 0);
+              const correctCount = playerAnswers.filter(answer => answer.is_correct).length;
+              
+              setScore(totalScore);
+              setCorrectAnswers(correctCount);
+              setProgressRestored(true);
+            } else {
+              router.replace(`/result/${gameCode}`);
+              return;
+            }
+          } else {
+            setProgressRestored(true);
+          }
+        } catch (error) {
+          console.error("Error restoring progress:", error);
+          setProgressRestored(true);
+        }
+      };
+
+      restoreProgress();
+    }
+  }, [storeHydrated, loading, gameId, playerId, isQuizStarted, gameSettings?.questionCount, setCurrentQuestion, setScore, setCorrectAnswers, router, gameCode]);
+
+  // Monitor player leaving the page and clean up
+  useEffect(() => {
+    const handleBeforeUnload = async () => {
+      if (gameId && playerId) {
+        try {
+          // Mark player as inactive or remove them
+          await supabase
+            .from("players")
+            .update({ 
+              current_question: -1 // Mark as inactive
+            })
+            .eq("id", playerId)
+            .eq("game_id", gameId)
+        } catch (error) {
+          console.error("Error marking player as inactive on leave:", error)
+        }
+      }
+    }
+
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'hidden' && gameId && playerId) {
+        try {
+          // Mark player as inactive when they switch tabs
+          await supabase
+            .from("players")
+            .update({ 
+              current_question: -1 // Mark as inactive
+            })
+            .eq("id", playerId)
+            .eq("game_id", gameId)
+        } catch (error) {
+          console.error("Error marking player as inactive on visibility change:", error)
+        }
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [gameId, playerId])
 
   useEffect(() => {
     if (!gameCode) return;
@@ -348,10 +484,14 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
         } else if (currentQuestion + 1 < gameSettings!.questionCount) {
           setCurrentQuestion(currentQuestion + 1);
         } else {
+          // Clean up session seed when game ends
+          if (gameId && playerId) {
+            localStorage.removeItem(`session-seed-${gameId}-${playerId}`);
+          }
           router.replace(`/result/${gameCode}`);
         }
       },
-      correct ? 1500 : 2500,
+      correct ? 400 : 600,
     );
   };
 
@@ -416,11 +556,15 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
     if (currentQuestion + 1 < gameSettings!.questionCount) {
       setCurrentQuestion(currentQuestion + 1);
     } else {
+      // Clean up session seed when game ends
+      if (gameId && playerId) {
+        localStorage.removeItem(`session-seed-${gameId}-${playerId}`);
+      }
       router.replace(`/result/${gameCode}`);
     }
   };
 
-  if (loading || !gameSettings)
+  if (loading || !gameSettings || (isQuizStarted && !progressRestored))
     return (
       <>
         <Background />
