@@ -2,7 +2,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useRouter } from "next/navigation"
 import { Clock } from "lucide-react"
@@ -10,6 +10,7 @@ import { Progress } from "@/components/ui/progress"
 import SpaceDodge from "@/components/space-dodge"
 import { useGameStore } from "@/lib/store"
 import { supabase } from "@/lib/supabase"
+import { syncServerTime } from "@/lib/server-time"
 import type { Quiz, Question } from "@/lib/types"
 import Image from "next/image"
 import { toast } from "sonner"
@@ -45,7 +46,7 @@ interface PlayContentProps {
 
 export default function PlayContent({ gameCode }: PlayContentProps) {
   const router = useRouter()
-  const { currentQuestion, score, correctAnswers, setCurrentQuestion, addScore, incrementCorrectAnswers, setGameId, gameId, playerId } =
+  const { currentQuestion, score, correctAnswers, setCurrentQuestion, addScore, incrementCorrectAnswers, setGameId, gameId, playerId, setCorrectAnswers, setScore } =
     useGameStore()
 
   const [timeLeft, setTimeLeft] = useState(0)
@@ -60,6 +61,43 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
   const [showMiniGame, setShowMiniGame] = useState(false)
   const [gameSettings, setGameSettings] = useState<{ timeLimit: number; questionCount: number } | null>(null)
   const [allQuestions, setAllQuestions] = useState<Question[]>([])
+  const [progressRestored, setProgressRestored] = useState(false)
+  const [storeHydrated, setStoreHydrated] = useState(false)
+  const [sessionSeed, setSessionSeed] = useState<number | null>(null)
+
+  // Seeded RNG (mulberry32) and Fisher-Yates shuffle for stable per-session randomness
+  const createRng = useCallback((seed: number) => {
+    let t = seed >>> 0
+    return () => {
+      t += 0x6D2B79F5
+      let r = Math.imul(t ^ (t >>> 15), 1 | t)
+      r ^= r + Math.imul(r ^ (r >>> 7), 61 | r)
+      return ((r ^ (r >>> 14)) >>> 0) / 4294967296
+    }
+  }, [])
+
+  const seededShuffle = useCallback(<T,>(arr: T[], seed: number): T[] => {
+    const rng = createRng(seed)
+    const a = [...arr]
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1))
+      ;[a[i], a[j]] = [a[j], a[i]]
+    }
+    return a
+  }, [createRng])
+
+  // Function to regenerate questions and choices with a seeded shuffle
+  const regenerateQuestionsWithSeed = useCallback((seed: number, quizData: any, questionCount: number) => {
+    const shuffledQuestions = seededShuffle(quizData.questions || [], seed).slice(0, questionCount)
+    return shuffledQuestions.map((q: any, idx: number) => {
+      // derive a sub-seed for choices to reduce correlation with question order
+      const choiceSeed = seed + (q.id || idx) * 101
+      return {
+        ...q,
+        choices: seededShuffle(q.choices || [], choiceSeed),
+      }
+    })
+  }, [seededShuffle])
 
   useEffect(() => {
     const fetchGame = async () => {
@@ -72,7 +110,7 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
 
       const { data: gameData, error: gameErr } = await supabase
         .from("games")
-        .select("id, quiz_id, time_limit, question_count, is_started")
+        .select("id, quiz_id, time_limit, question_count, is_started, quiz_start_time")
         .eq("code", gameCode.toUpperCase())
         .single()
 
@@ -120,14 +158,28 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
 
       setQuiz(quizData as Quiz);
 
-      // Shuffle dan simpan semua soal
-      const shuffled = [...quizData.questions]
-        .sort(() => Math.random() - 0.5)
-        .slice(0, gameData.question_count)
-        .map((q: any) => ({
-          ...q,
-          choices: [...q.choices].sort(() => Math.random() - 0.5),
-        }));
+      // Build a per-session seed key; include quiz_start_time so each new session reshuffles
+      const sessionKey = `session-seed-${gameData.id}-${playerId}-${gameData.quiz_start_time || "nostart"}`
+      const existingSeed = typeof window !== "undefined" ? localStorage.getItem(sessionKey) : null;
+      let seed: number;
+      
+      if (existingSeed) {
+        // Use existing seed for consistency across refreshes
+        seed = parseInt(existingSeed);
+        setSessionSeed(seed);
+        console.log(`Using existing session seed: ${seed}`);
+      } else {
+        // Create unique seed for each session and player (tied to quiz_start_time when available)
+        const base = `${gameData.id}-${playerId || 'anonymous'}-${gameData.quiz_start_time || Date.now()}`
+        seed = base.split('').reduce((a: number, b: string) => a + b.charCodeAt(0), 0)
+        // Store the session seed for consistency within the same session
+        setSessionSeed(seed);
+        if (typeof window !== "undefined") localStorage.setItem(sessionKey, seed.toString());
+        console.log(`Created new session seed: ${seed}`);
+      }
+      
+      // Generate questions using the seed
+      const shuffled = regenerateQuestionsWithSeed(seed, quizData, gameData.question_count);
       setAllQuestions(shuffled);
 
       if (gameData.is_started) {
@@ -135,12 +187,143 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
       } else {
         setIsQuizStarted(false);
       }
-      setCurrentQuestion(0);
+      
       setLoading(false);
     }
 
     fetchGame();
-  }, [gameCode, router, setCurrentQuestion, setGameId]);
+  }, [gameCode, router, setCurrentQuestion, setGameId, playerId, regenerateQuestionsWithSeed]);
+
+  // Check when store is hydrated and restore progress
+  useEffect(() => {
+    if (!storeHydrated && !loading && gameId && playerId && isQuizStarted) {
+      setStoreHydrated(true);
+      
+      // Now restore progress from database
+      const restoreProgress = async () => {
+        try {
+          // Fetch current session start time
+          const { data: gameSession, error: gameTimeErr } = await supabase
+            .from("games")
+            .select("quiz_start_time")
+            .eq("id", gameId)
+            .single()
+
+          if (gameTimeErr) {
+            console.error("Error fetching quiz_start_time:", gameTimeErr)
+          }
+
+          const startAt = gameSession?.quiz_start_time || null
+
+          // Build answers query scoped to this session
+          let answersQuery = supabase
+            .from("player_answers")
+            .select("question_index, points_earned, is_correct, created_at")
+            .eq("game_id", gameId)
+            .eq("player_id", playerId)
+            .order("question_index", { ascending: true })
+
+          if (startAt) {
+            answersQuery = answersQuery.gte("created_at", startAt)
+          }
+
+          const { data: playerAnswers, error: answersError } = await answersQuery
+
+          if (answersError) {
+            console.error("Error fetching player answers:", answersError);
+            setProgressRestored(true);
+          } else if (playerAnswers && playerAnswers.length > 0) {
+            // Determine progress from normal questions only (>= 0)
+            const normalAnswers = playerAnswers.filter(a => (a.question_index ?? -1) >= 0)
+            const lastAnsweredIndex = normalAnswers.length > 0 ? Math.max(...normalAnswers.map(a => a.question_index)) : -1;
+            const nextQuestion = lastAnsweredIndex + 1;
+            
+            if (nextQuestion < (gameSettings?.questionCount || 15)) {
+              setCurrentQuestion(nextQuestion);
+              console.log(`Restored progress: player at question ${nextQuestion}/${gameSettings?.questionCount}`);
+              // Correct count from normal answers only
+              const correctCount = normalAnswers.filter(answer => answer.is_correct).length;
+              setCorrectAnswers(correctCount);
+              // Authoritative score from players table
+              const { data: playerRow } = await supabase
+                .from("players")
+                .select("score")
+                .eq("id", playerId)
+                .single()
+              if (playerRow?.score !== undefined && playerRow?.score !== null) {
+                setScore(playerRow.score)
+              }
+              setProgressRestored(true);
+            } else {
+              router.replace(`/result/${gameCode}`);
+              return;
+            }
+          } else {
+            // Sync score even if no answers captured in this session
+            const { data: playerRow } = await supabase
+              .from("players")
+              .select("score")
+              .eq("id", playerId)
+              .single()
+            if (playerRow?.score !== undefined && playerRow?.score !== null) {
+              setScore(playerRow.score)
+            }
+            setProgressRestored(true);
+          }
+        } catch (error) {
+          console.error("Error restoring progress:", error);
+          setProgressRestored(true);
+        }
+      };
+
+      restoreProgress();
+    }
+  }, [storeHydrated, loading, gameId, playerId, isQuizStarted, gameSettings?.questionCount, setCurrentQuestion, setScore, setCorrectAnswers, router, gameCode]);
+
+  // Monitor player leaving the page and clean up
+  useEffect(() => {
+    const handleBeforeUnload = async () => {
+      if (gameId && playerId) {
+        try {
+          // Mark player as inactive or remove them
+          await supabase
+            .from("players")
+            .update({ 
+              current_question: -1 // Mark as inactive
+            })
+            .eq("id", playerId)
+            .eq("game_id", gameId)
+        } catch (error) {
+          console.error("Error marking player as inactive on leave:", error)
+        }
+      }
+    }
+
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'hidden' && gameId && playerId) {
+        try {
+          // Mark player as inactive when they switch tabs
+          await supabase
+            .from("players")
+            .update({ 
+              current_question: -1 // Mark as inactive
+            })
+            .eq("id", playerId)
+            .eq("game_id", gameId)
+        } catch (error) {
+          console.error("Error marking player as inactive on visibility change:", error)
+        }
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [gameId, playerId])
 
   useEffect(() => {
     if (!gameCode) return;
@@ -201,11 +384,16 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
         return;
       }
 
+      // Get server time offset to avoid client clock issues (Vercel/production)
+      const serverNow = await syncServerTime();
+      const clientOffset = serverNow - Date.now();
+
       const start = new Date(data.quiz_start_time).getTime();
       const limitMs = data.time_limit * 1000;
 
       const tick = () => {
-        const remain = Math.max(0, start + limitMs - Date.now());
+        const now = Date.now() + clientOffset;
+        const remain = Math.max(0, start + limitMs - now);
         setTimeLeft(Math.floor(remain / 1000));
         if (remain <= 0) {
           setShouldNavigate(true);
@@ -348,10 +536,14 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
         } else if (currentQuestion + 1 < gameSettings!.questionCount) {
           setCurrentQuestion(currentQuestion + 1);
         } else {
+          // Clean up session seed when game ends
+          if (gameId && playerId) {
+            localStorage.removeItem(`session-seed-${gameId}-${playerId}`);
+          }
           router.replace(`/result/${gameCode}`);
         }
       },
-      correct ? 1500 : 2500,
+      correct ? 400 : 600,
     );
   };
 
@@ -416,11 +608,15 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
     if (currentQuestion + 1 < gameSettings!.questionCount) {
       setCurrentQuestion(currentQuestion + 1);
     } else {
+      // Clean up session seed when game ends
+      if (gameId && playerId) {
+        localStorage.removeItem(`session-seed-${gameId}-${playerId}`);
+      }
       router.replace(`/result/${gameCode}`);
     }
   };
 
-  if (loading || !gameSettings)
+  if (loading || !gameSettings || (isQuizStarted && !progressRestored))
     return (
       <>
         <Background />

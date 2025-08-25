@@ -333,12 +333,14 @@ export default function HostContent({ gameCode }: HostContentProps) {
   const fetchPlayers = useCallback(async () => {
     if (!gameId) return
 
+    console.log("[v0] Fetching players for game:", gameId)
     const { data: playersData, error } = await supabase.from("players").select("*").eq("game_id", gameId)
     if (error) {
       console.error("Error fetching players:", error)
       return
     }
 
+    console.log("[v0] Fetched players:", playersData)
     setPlayers(playersData || [])
     if (playersData) {
       const progressMap = new Map<string, PlayerProgress>()
@@ -383,8 +385,27 @@ export default function HostContent({ gameCode }: HostContentProps) {
       .channel("players")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "players", filter: `game_id=eq.${gameId}` },
-        () => {
+        { event: "INSERT", schema: "public", table: "players", filter: `game_id=eq.${gameId}` },
+        (payload) => {
+          console.log("[v0] Player joined:", payload.new)
+          fetchPlayers()
+          updatePlayerProgress()
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "players", filter: `game_id=eq.${gameId}` },
+        (payload) => {
+          console.log("[v0] Player left:", payload.old)
+          fetchPlayers()
+          updatePlayerProgress()
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "players", filter: `game_id=eq.${gameId}` },
+        (payload) => {
+          console.log("[v0] Player updated:", payload.new)
           fetchPlayers()
           updatePlayerProgress()
         },
