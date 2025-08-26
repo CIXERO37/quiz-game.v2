@@ -6,6 +6,7 @@ import { motion } from "framer-motion"
 import { Play, Users, Gamepad2, Sparkles, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { JoinGameDialog } from "@/components/join-game-dialog"
+import { TutorialModal } from "@/components/tutorial-modal"
 
 function GameCodeHandler({ onGameCodeDetected }: { onGameCodeDetected: (code: string) => void }) {
   const searchParams = useSearchParams()
@@ -15,6 +16,10 @@ function GameCodeHandler({ onGameCodeDetected }: { onGameCodeDetected: (code: st
     if (codeParam) {
       console.log("Game code detected from URL:", codeParam) // Debug log
       onGameCodeDetected(codeParam.toUpperCase())
+
+      // Hapus parameter code dari URL agar tidak terdeteksi lagi
+      const newUrl = window.location.pathname
+      window.history.replaceState(null, "", newUrl)
     }
   }, [searchParams, onGameCodeDetected])
 
@@ -25,16 +30,43 @@ export default function HomePage() {
   const [showJoinGame, setShowJoinGame] = useState(false)
   const [gameCodeFromUrl, setGameCodeFromUrl] = useState("")
   const router = useRouter()
+  const [showTutorial, setShowTutorial] = useState(false)
+  const [hasUserClickedJoin, setHasUserClickedJoin] = useState(false)
+  const [hasShownTutorial, setHasShownTutorial] = useState(false)
 
   const handleGameCodeDetected = (code: string) => {
     console.log("Setting game code:", code) // Debug log
     setGameCodeFromUrl(code)
-    setShowJoinGame(true)
+    if (!hasShownTutorial) {
+      setShowTutorial(true)
+      setHasShownTutorial(true)
+    } else {
+      setShowJoinGame(true) // Langsung ke dialog jika sudah pernah lihat tutorial
+    }
   }
 
   const handleHostGame = () => {
     router.push("/select-quiz")
   }
+
+  // Handle closing of JoinGameDialog
+  const handleJoinGameDialogClose = (open: boolean) => {
+    setShowJoinGame(open)
+    if (!open) {
+      // Reset showTutorial when closing JoinGameDialog
+      setShowTutorial(false)
+      setGameCodeFromUrl("") // Reset gameCodeFromUrl to prevent re-trigger
+    }
+  }
+
+  useEffect(() => {
+    if (!showJoinGame && gameCodeFromUrl && !showTutorial) {
+      const url = new URL(window.location.href)
+      url.searchParams.delete("code")
+      window.history.replaceState(null, "", url.toString())
+      setGameCodeFromUrl("")
+    }
+  }, [showJoinGame, gameCodeFromUrl, showTutorial])
 
   return (
     <>
@@ -216,7 +248,10 @@ export default function HomePage() {
 
           <motion.div whileHover={{ scale: 1.05, y: -10 }} whileTap={{ scale: 0.95 }} className="group">
             <Button
-              onClick={() => setShowJoinGame(true)}
+              onClick={() => {
+                setHasUserClickedJoin(true)
+                setShowTutorial(true)
+              }}
               className="w-full h-32 sm:h-36 md:h-40 bg-gradient-to-br from-cyan-500 to-blue-600 border-2 border-cyan-400/50 hover:from-cyan-400 hover:to-blue-500 hover:shadow-xl hover:shadow-cyan-500/40 transition-all duration-300 flex flex-col items-center justify-center space-y-2 sm:space-y-3 md:space-y-4 text-white font-mono shadow-lg shadow-cyan-500/30 relative overflow-hidden"
               style={{ imageRendering: "pixelated" }}
             >
@@ -236,7 +271,22 @@ export default function HomePage() {
         </motion.div>
       </div>
 
-      <JoinGameDialog open={showJoinGame} onOpenChange={setShowJoinGame} initialGameCode={gameCodeFromUrl} />
+      <JoinGameDialog open={showJoinGame} onOpenChange={handleJoinGameDialogClose} initialGameCode={gameCodeFromUrl} />
+      {showTutorial && (
+        <TutorialModal
+          open={showTutorial}
+          onClose={() => {
+            setShowTutorial(false)
+            if (!hasUserClickedJoin) {
+              setGameCodeFromUrl("") // Reset gameCodeFromUrl if tutorial is closed without joining
+            }
+          }}
+          onConfirm={() => {
+            setShowTutorial(false)
+            setShowJoinGame(true)
+          }}
+        />
+      )}
     </>
   )
 }
