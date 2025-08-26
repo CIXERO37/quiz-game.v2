@@ -80,11 +80,23 @@ const config: Config = {
             'background-position': 'right center',
           },
         },
+        'twinkle': {
+          '0%, 100%': { opacity: '0.3', transform: 'scale(1)' },
+          '50%': { opacity: '1', transform: 'scale(1.2)' },
+        },
+        'shooting-star': {
+          '0%': { opacity: '0', transform: 'translateX(-100px)' },
+          '10%': { opacity: '1' },
+          '90%': { opacity: '1' },
+          '100%': { opacity: '0', transform: 'translateX(300px)' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
         'gradient-x': 'gradient-x 10s ease infinite',
+        'twinkle': 'twinkle 2s ease-in-out infinite alternate',
+        'shooting-star': 'shooting-star 6s linear infinite',
       },
     },
   },
