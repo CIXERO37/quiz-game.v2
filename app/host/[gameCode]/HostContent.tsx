@@ -194,11 +194,7 @@ const PodiumLeaderboard = React.memo(
                   {/* Glowing ring around avatar */}
                   <div className="relative">
                     <div className="absolute inset-0 rounded-full bg-gradient-to-r from-yellow-400 via-yellow-300 to-yellow-400 blur-lg opacity-75 animate-pulse" />
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-                      className="relative"
-                    >
+                    <div className="relative">
                       <Image
                         src={onlyPlayer.avatar || "/placeholder.svg"}
                         alt={getFirstName(onlyPlayer.name)}
@@ -206,7 +202,7 @@ const PodiumLeaderboard = React.memo(
                         height={200}
                         className="w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40 lg:w-48 lg:h-48 rounded-full border-4 sm:border-6 lg:border-8 border-yellow-400 object-cover relative z-10 shadow-[0_0_20px_rgba(255,215,0,0.8)] sm:shadow-[0_0_40px_rgba(255,215,0,0.8)]"
                       />
-                    </motion.div>
+                    </div>
                   </div>
 
                   <motion.div
@@ -251,7 +247,7 @@ const PodiumLeaderboard = React.memo(
 
     // 2 players - Victory Duo
     if (sorted.length === 2) {
-      const [second, first] = sorted
+      const [first, second] = sorted
       return (
         <div className="min-h-screen relative overflow-hidden">
           {showFireworks && <Fireworks />}
@@ -284,7 +280,7 @@ const PodiumLeaderboard = React.memo(
                 <div className="relative">
                   <div className="bg-gradient-to-b from-gray-300 via-gray-400 to-gray-500 rounded-t-xl sm:rounded-t-2xl p-1 shadow-[0_0_20px_rgba(192,192,192,0.5)] sm:shadow-[0_0_30px_rgba(192,192,192,0.5)]">
                     <div className="bg-gradient-to-b from-gray-700 to-gray-800 rounded-t-xl sm:rounded-t-2xl p-3 sm:p-6 lg:p-8">
-                      <div className="relative">
+                      <div className="relative flex justify-center">
                         <div className="absolute inset-0 rounded-full bg-gradient-to-r from-gray-300 to-gray-400 blur-md opacity-60 animate-pulse" />
                         <Image
                           src={second.avatar || "/placeholder.svg"}
@@ -364,9 +360,9 @@ const PodiumLeaderboard = React.memo(
     }
 
     // 3+ players - Grand Podium
-    const [second, first, third] = [
-      sorted[1] || { name: "No Player", score: 0, avatar: "/placeholder.svg" },
+    const [first, second, third] = [
       sorted[0] || { name: "No Player", score: 0, avatar: "/placeholder.svg" },
+      sorted[1] || { name: "No Player", score: 0, avatar: "/placeholder.svg" },
       sorted[2] || { name: "No Player", score: 0, avatar: "/placeholder.svg" },
     ]
     const rest = sorted.slice(3)
@@ -450,11 +446,7 @@ const PodiumLeaderboard = React.memo(
                         {/* Multiple glowing rings */}
                         <div className="absolute inset-0 rounded-full bg-gradient-to-r from-yellow-400 to-yellow-500 blur-xl opacity-60 animate-pulse" />
                         <div className="absolute inset-0 rounded-full bg-gradient-to-r from-yellow-300 to-yellow-400 blur-lg opacity-40 animate-pulse" style={{ animationDelay: "0.5s" }} />
-                        <motion.div
-                          animate={{ rotate: 360 }}
-                          transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-                          className="relative"
-                        >
+                        <div className="relative">
                           <Image
                             src={first.avatar || "/placeholder.svg"}
                             alt={getFirstName(first.name)}
@@ -462,7 +454,7 @@ const PodiumLeaderboard = React.memo(
                             height={200}
                             className="w-14 h-14 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-32 lg:h-32 rounded-full border-3 sm:border-4 lg:border-6 border-yellow-400 object-cover relative z-10 shadow-[0_0_20px_rgba(255,215,0,0.9)] sm:shadow-[0_0_30px_rgba(255,215,0,0.9)]"
                           />
-                        </motion.div>
+                        </div>
                       </div>
                       <div className="text-center mt-2 sm:mt-4">
                         <motion.div
@@ -495,7 +487,7 @@ const PodiumLeaderboard = React.memo(
                 <div className="relative">
                   <div className="bg-gradient-to-b from-gray-300 via-gray-400 to-gray-500 rounded-t-xl sm:rounded-t-2xl p-1 shadow-[0_0_20px_rgba(192,192,192,0.6)] sm:shadow-[0_0_30px_rgba(192,192,192,0.6)]">
                     <div className="bg-gradient-to-b from-gray-700 to-gray-800 rounded-t-xl sm:rounded-t-2xl p-2 sm:p-5 lg:p-7">
-                      <div className="relative">
+                      <div className="relative flex justify-center">
                         <div className="absolute inset-0 rounded-full bg-gradient-to-r from-gray-300 to-gray-400 blur-md opacity-60 animate-pulse" />
                         <Image
                           src={second.avatar || "/placeholder.svg"}
