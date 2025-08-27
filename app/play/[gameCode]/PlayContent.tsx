@@ -14,6 +14,7 @@ import { syncServerTime } from "@/lib/server-time"
 import type { Quiz, Question } from "@/lib/types"
 import Image from "next/image"
 import { toast } from "sonner"
+import { useLanguage } from "@/contexts/language-context"
 
 function PixelButton({
   children,
@@ -45,6 +46,7 @@ interface PlayContentProps {
 }
 
 export default function PlayContent({ gameCode }: PlayContentProps) {
+  const { t } = useLanguage()
   const router = useRouter()
   const { currentQuestion, score, correctAnswers, setCurrentQuestion, addScore, incrementCorrectAnswers, setGameId, gameId, playerId, setCorrectAnswers, setScore } =
     useGameStore()
@@ -88,15 +90,43 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
 
   // Function to regenerate questions and choices with a seeded shuffle
   const regenerateQuestionsWithSeed = useCallback((seed: number, quizData: any, questionCount: number) => {
-    const shuffledQuestions = seededShuffle(quizData.questions || [], seed).slice(0, questionCount)
-    return shuffledQuestions.map((q: any, idx: number) => {
-      // derive a sub-seed for choices to reduce correlation with question order
-      const choiceSeed = seed + (q.id || idx) * 101
-      return {
-        ...q,
-        choices: seededShuffle(q.choices || [], choiceSeed),
+    try {
+      // Validate input data
+      if (!quizData || !quizData.questions || !Array.isArray(quizData.questions)) {
+        console.error("Invalid quiz data structure:", quizData);
+        return [];
       }
-    })
+      
+      if (quizData.questions.length === 0) {
+        console.error("Quiz has no questions");
+        return [];
+      }
+      
+      if (questionCount <= 0) {
+        console.error("Invalid question count:", questionCount);
+        return [];
+      }
+      
+      const shuffledQuestions = seededShuffle(quizData.questions, seed).slice(0, questionCount)
+      
+      return shuffledQuestions.map((q: any, idx: number) => {
+        // Validate question structure
+        if (!q || !q.choices || !Array.isArray(q.choices)) {
+          console.error("Invalid question structure:", q);
+          return q; // Return original question if invalid
+        }
+        
+        // derive a sub-seed for choices to reduce correlation with question order
+        const choiceSeed = seed + (q.id || idx) * 101
+        return {
+          ...q,
+          choices: seededShuffle(q.choices, choiceSeed),
+        }
+      })
+    } catch (error) {
+      console.error("Error in regenerateQuestionsWithSeed:", error);
+      return [];
+    }
   }, [seededShuffle])
 
   useEffect(() => {
@@ -116,6 +146,7 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
 
       if (gameErr || !gameData) {
         console.error("Game fetch error:", gameErr?.message, gameErr?.details);
+        console.error("Game code attempted:", gameCode);
         toast.error("Game not found!");
         router.replace("/");
         return;
@@ -151,7 +182,17 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
 
       if (quizErr || !quizData) {
         console.error("Quiz fetch error:", quizErr?.message, quizErr?.details);
+        console.error("Attempted to fetch quiz ID:", gameData.quiz_id);
+        console.error("Game data:", gameData);
         toast.error("Quiz not found!");
+        router.replace("/");
+        return;
+      }
+
+      // Validate quiz data structure
+      if (!quizData.questions || !Array.isArray(quizData.questions) || quizData.questions.length === 0) {
+        console.error("Quiz has no questions or invalid structure:", quizData);
+        toast.error("Quiz has no questions!");
         router.replace("/");
         return;
       }
@@ -180,7 +221,24 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
       
       // Generate questions using the seed
       const shuffled = regenerateQuestionsWithSeed(seed, quizData, gameData.question_count);
+      
+      // Validate generated questions
+      if (!shuffled || shuffled.length === 0) {
+        console.error("Failed to generate questions from quiz data");
+        toast.error("Failed to load quiz questions!");
+        router.replace("/");
+        return;
+      }
+      
       setAllQuestions(shuffled);
+      
+      console.log(`Quiz loaded successfully:`, {
+        gameId: gameData.id,
+        quizId: gameData.quiz_id,
+        questionCount: gameData.question_count,
+        questionsLoaded: shuffled.length,
+        isStarted: gameData.is_started
+      });
 
       if (gameData.is_started) {
         setIsQuizStarted(true);
@@ -441,6 +499,14 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
 
   const question = allQuestions[currentQuestion];
 
+  // Safety check: if currentQuestion is out of bounds, reset it
+  useEffect(() => {
+    if (allQuestions.length > 0 && currentQuestion >= allQuestions.length) {
+      console.warn(`Current question ${currentQuestion} is out of bounds (max: ${allQuestions.length - 1}), resetting to 0`);
+      setCurrentQuestion(0);
+    }
+  }, [currentQuestion, allQuestions.length, setCurrentQuestion]);
+
   const getChoiceLabel = (index: number) => String.fromCharCode(65 + index);
 
   const formatTime = (seconds: number) => {
@@ -653,26 +719,59 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
         <Background />
         <div className="relative z-10 min-h-screen flex items-center justify-center font-mono text-white">
           <div className="bg-black/70 border-4 border-white p-6 rounded-lg">
-            <p>Loading quiz...</p>
+            <p>{t('loadingQuiz', 'Loading quiz...')}</p>
           </div>
         </div>
       </>
     );
 
-  if (!quiz || !question)
+  // Check if quiz data is still loading or if questions array is empty
+  if (!quiz || allQuestions.length === 0) {
+    console.log("Quiz loading state:", {
+      hasQuiz: !!quiz,
+      questionsCount: allQuestions.length,
+      currentQuestion,
+      loading,
+      gameSettings: !!gameSettings,
+      isQuizStarted,
+      progressRestored
+    });
+    
+    return (
+      <>
+        <Background />
+        <div className="relative z-10 min-h-screen flex items-center justify-center font-mono text-white">
+          <div className="bg-black/70 border-4 border-white p-6 rounded-lg">
+            <p>{t('loadingQuiz', 'Loading quiz...')}</p>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // Check if current question exists in the questions array
+  if (!question) {
+    console.error("Question not found:", {
+      currentQuestion,
+      totalQuestions: allQuestions.length,
+      questionData: allQuestions[currentQuestion],
+      quizData: quiz
+    });
+    
     return (
       <>
         <Background />
         <div className="relative z-10 min-h-screen flex items-center justify-center font-mono text-white">
           <div className="bg-black/70 border-4 border-red-500 p-6 rounded-lg">
-            <p>Quiz not found or invalid quiz ID.</p>
+            <p>{t('quizNotFound', 'Quiz not found or invalid quiz ID.')}</p>
             <button onClick={() => router.replace("/")} className="mt-4 px-4 py-2 bg-red-600 rounded">
-              Go Home
+              {t('goHome', 'Go Home')}
             </button>
           </div>
         </div>
       </>
     );
+  }
 
   if (!isQuizStarted)
     return (
@@ -680,7 +779,7 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
         <Background />
         <div className="relative z-10 min-h-screen flex items-center justify-center font-mono text-white">
           <div className="bg-black/70 border-4 border-white p-6 rounded-lg">
-            <p>Waiting for host to start...</p>
+            <p>{t('waitingForHost', 'Waiting for host to start...')}</p>
           </div>
         </div>
       </>
@@ -695,7 +794,7 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
         <div className="w-full max-w-4xl mx-auto p-4">
           <div className="flex justify-between items-center mb-4">
             <div className="text-lg">
-              Score: <span className="font-bold text-yellow-300">{score}</span>
+              {t('score', 'Score')}: <span className="font-bold text-yellow-300">{score}</span>
             </div>
             <div className="flex items-center gap-2">
               <Clock className="w-5 h-5" />
@@ -704,7 +803,7 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
           </div>
 
           <div className="mb-2 flex items-center justify-between text-sm text-white/70">
-            <span>Progress: {currentQuestion}/{gameSettings.questionCount}</span>
+            <span>{t('progress', 'Progress')}: {currentQuestion}/{gameSettings.questionCount}</span>
             <span>{Math.round((currentQuestion / gameSettings.questionCount) * 100)}%</span>
           </div>
           <Progress value={(currentQuestion / gameSettings.questionCount) * 100} className="mb-6" />
@@ -717,13 +816,13 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
             className="bg-white/10 border-4 border-white/20 p-6 rounded-lg mb-6"
           >
             <h2 className="text-xl mb-4">
-              Question {currentQuestion + 1} of {gameSettings.questionCount}
+              {t('questionOf', 'Question {current} of {total}').replace('{current}', String(currentQuestion + 1)).replace('{total}', String(gameSettings.questionCount))}
             </h2>
             {question.question_image_url && (
               <div className="mb-6 flex justify-center">
                 <Image
                   src={question.question_image_url || "/images/placeholder.svg"}
-                  alt={question.question_image_alt || "Gambar soal"}
+                  alt={question.question_image_alt || t('questionImage', 'Question image')}
                   width={300}
                   height={200}
                   sizes="(max-width: 768px) 100vw, 300px"
