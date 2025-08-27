@@ -7,6 +7,8 @@ import { Play, Users, Gamepad2, Sparkles, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { JoinGameDialog } from "@/components/join-game-dialog"
 import { TutorialModal } from "@/components/tutorial-modal"
+import { LanguageSelector } from "@/components/language-selector"
+import { useLanguage } from "@/contexts/language-context"
 
 function GameCodeHandler({ onGameCodeDetected }: { onGameCodeDetected: (code: string) => void }) {
   const searchParams = useSearchParams()
@@ -27,6 +29,7 @@ function GameCodeHandler({ onGameCodeDetected }: { onGameCodeDetected: (code: st
 }
 
 export default function HomePage() {
+  const { t } = useLanguage()
   const [showJoinGame, setShowJoinGame] = useState(false)
   const [gameCodeFromUrl, setGameCodeFromUrl] = useState("")
   const router = useRouter()
@@ -73,6 +76,8 @@ export default function HomePage() {
       <Suspense fallback={null}>
         <GameCodeHandler onGameCodeDetected={handleGameCodeDetected} />
       </Suspense>
+
+      <LanguageSelector />
 
       <div className="fixed inset-0 z-0 overflow-hidden">
         <div
@@ -202,7 +207,7 @@ export default function HomePage() {
               imageRendering: "pixelated",
             }}
           >
-            QUIZ GAME
+            {t('title', 'QUIZ GAME')}
             <div className="absolute -top-2 -right-2 w-4 h-4 bg-yellow-300 rounded-full animate-ping opacity-75"></div>
             <div
               className="absolute -top-1 -left-3 w-2 h-2 bg-cyan-300 rounded-full animate-pulse"
@@ -216,7 +221,7 @@ export default function HomePage() {
               fontFamily: "monospace",
             }}
           >
-            Play a quiz game and with your friends!
+            {t('subtitle', 'Play a quiz game and with your friends!')}
           </p>
         </motion.div>
 
@@ -240,7 +245,7 @@ export default function HomePage() {
                 <Play className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-red-600" />
               </div>
               <div className="text-center relative z-10">
-                <h2 className="text-xl sm:text-xl md:text-2xl font-bold mb-1">HOST </h2>
+                <h2 className="text-xl sm:text-xl md:text-2xl font-bold mb-1">{t('host', 'HOST')}</h2>
               </div>
               <div className="absolute top-2 right-2 w-2 h-2 bg-yellow-300 rounded-full animate-ping"></div>
             </Button>
@@ -263,7 +268,7 @@ export default function HomePage() {
                 <Users className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-cyan-600" />
               </div>
               <div className="text-center relative z-10">
-                <h2 className="text-xl sm:text-xl md:text-2xl font-bold mb-1">JOIN</h2>
+                <h2 className="text-xl sm:text-xl md:text-2xl font-bold mb-1">{t('join', 'JOIN')}</h2>
               </div>
               <div className="absolute top-2 right-2 w-2 h-2 bg-yellow-300 rounded-full animate-ping"></div>
             </Button>

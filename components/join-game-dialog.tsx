@@ -16,6 +16,7 @@ import { X } from "lucide-react"
 import { useGameStore } from "@/lib/store"
 import { supabase } from "@/lib/supabase"
 import { v4 as uuidv4 } from "uuid"
+import { useLanguage } from "@/contexts/language-context"
 
 const ANIMAL_AVATARS = [
   "https://api.dicebear.com/9.x/micah/svg?seed=cat",
@@ -42,6 +43,7 @@ interface JoinGameDialogProps {
 }
 
 export function JoinGameDialog({ open, onOpenChange, initialGameCode = "" }: JoinGameDialogProps) {
+  const { t } = useLanguage()
   const [selectedAvatar, setSelectedAvatar] = useState<string>(ANIMAL_AVATARS[0])
   const [isLoading, setIsLoading] = useState(false)
 
@@ -95,7 +97,7 @@ export function JoinGameDialog({ open, onOpenChange, initialGameCode = "" }: Joi
         .single()
 
       if (gameError || !game) {
-        form.setError("gameCode", { message: "Game not found or already started" })
+        form.setError("gameCode", { message: t('error', 'Game not found or already started') })
         return
       }
 
@@ -142,12 +144,12 @@ export function JoinGameDialog({ open, onOpenChange, initialGameCode = "" }: Joi
           className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground z-10"
         >
           <X className="h-4 w-4" />
-          <span className="sr-only">Close</span>
+          <span className="sr-only">{t('close', 'Close')}</span>
         </button>
 
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold text-center bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            {initialGameCode ? "Join With QR" : "Join Game"}
+            {initialGameCode ? t('joinGame', 'Join With QR') : t('joinGame', 'Join Game')}
           </DialogTitle>
         </DialogHeader>
 
@@ -158,9 +160,9 @@ export function JoinGameDialog({ open, onOpenChange, initialGameCode = "" }: Joi
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Your Name</FormLabel>
+                  <FormLabel>{t('name', 'Name')}</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter your name" {...field} className="bg-white/80 border-gray-200" />
+                    <Input placeholder={t('name', 'Enter your name')} {...field} className="bg-white/80 border-gray-200" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -172,10 +174,10 @@ export function JoinGameDialog({ open, onOpenChange, initialGameCode = "" }: Joi
               name="gameCode"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Game Code</FormLabel>
+                  <FormLabel>{t('gameCode', 'Game Code')}</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="Enter 6-digit code or paste join link"
+                      placeholder={t('enterCode', 'Enter 6-digit code or paste join link')}
                       {...field}
                       onChange={(e) => {
                         const extractedCode = extractGameCodeFromUrl(e.target.value)
@@ -187,13 +189,13 @@ export function JoinGameDialog({ open, onOpenChange, initialGameCode = "" }: Joi
                     />
                   </FormControl>
                   <FormMessage />
-                  {initialGameCode && <p className="text-sm text-green-600 mt-1">✓ Game code use QR</p>}
+                  {initialGameCode && <p className="text-sm text-green-600 mt-1">✓ {t('gameCode', 'Game code use QR')}</p>}
                 </FormItem>
               )}
             />
 
             <div>
-              <Label className="text-sm font-medium mb-3 block">Choose Your Avatar</Label>
+              <Label className="text-sm font-medium mb-3 block">{t('chooseAvatar', 'Choose Your Avatar')}</Label>
               <div className="grid grid-cols-4 gap-3 mb-3">
                 {ANIMAL_AVATARS.map((avatarUrl, index) => (
                   <motion.button
@@ -223,7 +225,7 @@ export function JoinGameDialog({ open, onOpenChange, initialGameCode = "" }: Joi
               disabled={isLoading}
               className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 rounded-xl shadow-lg"
             >
-              {isLoading ? "Joining..." : "Join Game"}
+              {isLoading ? t('loading', 'Joining...') : t('joinGame', 'Join Game')}
             </Button>
           </form>
         </Form>
