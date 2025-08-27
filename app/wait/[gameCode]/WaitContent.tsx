@@ -2,7 +2,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import { useRouter } from "next/navigation"
 import { useGameStore } from "@/lib/store"
 import { supabase } from "@/lib/supabase"
@@ -41,6 +41,7 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
   const [countdownValue, setCountdownValue] = useState(0)
   const [shouldRedirect, setShouldRedirect] = useState(false)
   const [isRedirecting, setIsRedirecting] = useState(false)
+  const [showExitConfirm, setShowExitConfirm] = useState(false)
 
   useEffect(() => {
     const stored = localStorage.getItem("player")
@@ -176,7 +177,12 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
     return () => clearInterval(iv)
   }, [loading, gameId, gameCode, router, isRedirecting])
 
-  const handleExit = async () => {
+  const showExitDialog = () => {
+    setShowExitConfirm(true)
+  }
+
+  const handleExitConfirm = async () => {
+    setShowExitConfirm(false)
     try {
       console.log("[v0] Starting exit process for player:", playerName, "in game:", gameId)
 
@@ -185,6 +191,7 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
       if (gameId && playerName) {
         console.log("[v0] Deleting player from database...")
 
+        // First, find the player to get their ID for more reliable deletion
         const { data: playerToDelete, error: findError } = await supabase
           .from("players")
           .select("id, name")
@@ -194,54 +201,85 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
 
         if (findError) {
           console.error("[v0] Error finding player to delete:", findError)
+          // Try alternative deletion method if player not found by name
+          const { error: deleteError } = await supabase
+            .from("players")
+            .delete()
+            .eq("game_id", gameId)
+            .eq("name", playerName)
+
+          if (deleteError) {
+            console.error("[v0] Failed to delete player by name:", deleteError)
+            toast.error("Failed to remove player from game")
+            return
+          }
         } else {
           console.log("[v0] Found player to delete:", playerToDelete)
+          
+          // Delete using both ID and name for maximum reliability
+          const { error: deleteError, data: deletedData } = await supabase
+            .from("players")
+            .delete()
+            .eq("id", playerToDelete.id)
+            .eq("game_id", gameId)
+            .select()
+
+          if (deleteError) {
+            console.error("[PLAYER] ❌ Error removing player by ID:", deleteError)
+            // Fallback to deletion by name
+            const { error: fallbackError } = await supabase
+              .from("players")
+              .delete()
+              .eq("game_id", gameId)
+              .eq("name", playerName)
+
+            if (fallbackError) {
+              console.error("[v0] Fallback deletion also failed:", fallbackError)
+              toast.error("Failed to remove player from game")
+              return
+            }
+          } else {
+            console.log("[PLAYER] ✅ Player successfully deleted from database:", deletedData)
+            console.log("[PLAYER] 📡 Broadcasting deletion event for player ID:", playerToDelete.id)
+          }
         }
 
-        const { error, data } = await supabase
+        // Wait a moment for real-time updates to propagate
+        await new Promise(resolve => setTimeout(resolve, 300))
+
+        // Verify deletion was successful
+        const { data: verifyData, error: verifyError } = await supabase
           .from("players")
-          .delete()
+          .select("id, name")
           .eq("game_id", gameId)
           .eq("name", playerName)
-          .select()
 
-        if (error) {
-          console.error("[v0] Error removing player:", error)
-          toast.error("Failed to remove player from game")
+        if (verifyError) {
+          console.log("[v0] Verification query failed (this might be normal):", verifyError)
+        } else if (verifyData && verifyData.length > 0) {
+          console.warn("[v0] Player still exists after deletion, attempting final cleanup:", verifyData)
+          // Final cleanup attempt
+          await supabase
+            .from("players")
+            .delete()
+            .eq("game_id", gameId)
+            .eq("name", playerName)
         } else {
-          console.log("[v0] Player successfully deleted from database:", data)
-          toast.success("Left the game successfully")
+          console.log("[v0] Player successfully removed from database")
         }
 
-        setTimeout(async () => {
-          console.log("[v0] First cleanup verification")
-          const { data: remainingPlayers } = await supabase
-            .from("players")
-            .select("id, name")
-            .eq("game_id", gameId)
-            .eq("name", playerName)
+        // Force trigger a notification for any listening hosts
+        try {
+          await supabase
+            .from("games")
+            .update({ updated_at: new Date().toISOString() })
+            .eq("id", gameId)
+          console.log("[PLAYER] 🔔 Triggered host notification")
+        } catch (notifyError) {
+          console.warn("[PLAYER] ⚠️ Failed to notify host:", notifyError)
+        }
 
-          if (remainingPlayers && remainingPlayers.length > 0) {
-            console.warn("[v0] Player still exists, attempting force removal:", remainingPlayers)
-            await supabase.from("players").delete().eq("game_id", gameId).eq("name", playerName)
-          }
-        }, 100)
-
-        setTimeout(async () => {
-          console.log("[v0] Final cleanup verification")
-          const { data: stillRemaining } = await supabase
-            .from("players")
-            .select("id, name")
-            .eq("game_id", gameId)
-            .eq("name", playerName)
-
-          if (stillRemaining && stillRemaining.length > 0) {
-            console.warn("[v0] Final cleanup attempt for:", stillRemaining)
-            await supabase.from("players").delete().eq("game_id", gameId).eq("name", playerName)
-          } else {
-            console.log("[v0] Player successfully removed from database")
-          }
-        }, 300)
+        toast.success("Left the game successfully")
       }
 
       clearGame?.()
@@ -324,13 +362,57 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
           </p>
 
           <button
-            onClick={handleExit}
+            onClick={showExitDialog}
             className="bg-red-500 hover:bg-red-600 border-2 border-red-700 px-4 py-2 rounded-lg text-white font-bold shadow-[4px_4px_0px_#000] text-sm"
           >
             Exit Room
           </button>
         </motion.div>
       </div>
+
+      {/* Exit Confirmation Modal */}
+      <AnimatePresence>
+        {showExitConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+            onClick={() => setShowExitConfirm(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.8, opacity: 0, y: 20 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="bg-black/90 border-4 border-white font-mono text-white p-6 rounded-lg shadow-[8px_8px_0px_#000] max-w-sm w-full mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-center">
+                <div className="text-4xl mb-4">⚠️</div>
+                <h2 className="text-xl mb-4 font-bold">Exit Game?</h2>
+                <p className="text-sm mb-6 text-white/80">
+                  Are you sure you want to leave the game? You'll need to join again if you change your mind.
+                </p>
+                <div className="flex flex-col sm:flex-row justify-center gap-3">
+                  <button
+                    onClick={() => setShowExitConfirm(false)}
+                    className="bg-gray-500 hover:bg-gray-600 border-2 border-gray-700 px-4 py-2 rounded-lg text-white font-bold shadow-[4px_4px_0px_#000] text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleExitConfirm}
+                    className="bg-red-500 hover:bg-red-600 border-2 border-red-700 px-4 py-2 rounded-lg text-white font-bold shadow-[4px_4px_0px_#000] text-sm"
+                  >
+                    Exit Game
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   )
 }
