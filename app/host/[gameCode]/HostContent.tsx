@@ -873,6 +873,40 @@ export default function HostContent({ gameCode }: HostContentProps) {
     setCurrentProgressPage(0)
   }, [playerProgress.length])
 
+  // Smart useEffect for player changes with debouncing (friend's suggestion)
+  const lastRefreshTime = useRef(0)
+  const refreshDebounceTime = 1000 // 1 second debounce for faster response
+  const [forceUpdateKey, setForceUpdateKey] = useState(0)
+  
+  useEffect(() => {
+    if (!gameId || !mounted) return
+    
+    const now = Date.now()
+    const timeSinceLastRefresh = now - lastRefreshTime.current
+    
+    // Only refresh if:
+    // 1. Enough time has passed (prevents infinite loops)
+    // 2. We're not in quiz mode (to avoid disrupting active quiz)
+    if (timeSinceLastRefresh >= refreshDebounceTime && !quizStarted) {
+      console.log("[HOST] 🔄 Player state changed, smart refresh triggered")
+      lastRefreshTime.current = now
+      
+      // Debounced refresh to ensure we have the latest data
+      const refreshTimeout = setTimeout(async () => {
+        console.log("[HOST] 📊 Executing smart refresh...")
+        await fetchPlayers()
+        await updatePlayerProgress()
+        console.log("[HOST] ✅ Smart refresh completed")
+      }, 500)
+      
+      return () => clearTimeout(refreshTimeout)
+    } else if (quizStarted) {
+      console.log("[HOST] 🎮 Quiz active, skipping smart refresh")
+    } else {
+      console.log("[HOST] ⏳ Refresh debounced, waiting for cooldown")
+    }
+  }, [players.length, gameId, mounted, quizStarted, fetchPlayers, updatePlayerProgress])
+
   useEffect(() => {
     if (!gameId) return
 
@@ -888,40 +922,162 @@ export default function HostContent({ gameCode }: HostContentProps) {
             toast.success("🎉 Quiz ended!")
           }
           if (payload.new.is_started) setQuizStarted(true)
+          
+          // If there's an updated_at change, refresh players (signal from player exit)
+          if (payload.new.updated_at !== payload.old.updated_at) {
+            console.log("[HOST] 🔔 Received update notification, refreshing players...")
+            setTimeout(() => {
+              fetchPlayers()
+              updatePlayerProgress()
+            }, 100)
+          }
         },
       )
       .subscribe()
 
     const playersSubscription = supabase
-      .channel("players")
+      .channel(`players-${gameId}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "players", filter: `game_id=eq.${gameId}` },
-        (payload) => {
-          console.log("[v0] Player joined:", payload.new)
-          fetchPlayers()
-          updatePlayerProgress()
+        async (payload) => {
+          console.log("[HOST] 🟢 Player joined:", payload.new)
+          const newPlayer = payload.new as Player
+          
+          // Immediate state update for instant UI response
+          setPlayers(prev => {
+            const exists = prev.find(p => p.id === newPlayer.id)
+            if (exists) {
+              console.log("[HOST] ⚠️ Player already exists in state:", newPlayer.name)
+              return prev
+            }
+            console.log("[HOST] ➕ Adding player to state:", newPlayer.name)
+            return [...prev, newPlayer]
+          })
+          
+          // Also update progress immediately
+          const newProgress = {
+            id: newPlayer.id,
+            name: newPlayer.name,
+            avatar: newPlayer.avatar || "/placeholder.svg?height=40&width=40&text=Player",
+            score: newPlayer.score || 0,
+            currentQuestion: 0,
+            totalQuestions: gameSettings.questionCount || quiz?.questionCount || 10,
+            isActive: true,
+            rank: 0,
+          }
+          
+          setPlayerProgress(prev => {
+            const exists = prev.find(p => p.id === newPlayer.id)
+            if (exists) return prev
+            const updated = [...prev, newProgress]
+            const sorted = updated.sort((a, b) => b.score - a.score)
+            const ranked = sorted.map((p, idx) => ({ ...p, rank: idx + 1 }))
+            console.log("[HOST] 📊 Added to progress. Total:", ranked.length)
+            return ranked
+          })
+          
+          // Backup refresh after delay
+          setTimeout(() => {
+            fetchPlayers()
+            updatePlayerProgress()
+          }, 500)
         },
       )
       .on(
         "postgres_changes",
         { event: "DELETE", schema: "public", table: "players", filter: `game_id=eq.${gameId}` },
-        (payload) => {
-          console.log("[v0] Player left:", payload.old)
-          fetchPlayers()
-          updatePlayerProgress()
+        async (payload) => {
+          console.log("[HOST] 🔴 Player left:", payload.old)
+          const deletedPlayerId = payload.old.id
+          const deletedPlayerName = payload.old.name
+          
+          // Immediate state update
+          setPlayers(prev => {
+            const filtered = prev.filter(p => p.id !== deletedPlayerId)
+            console.log(`[HOST] 🗑️ Removed player "${deletedPlayerName}" from state. Remaining:`, filtered.length)
+            
+            // Special handling for last player
+            if (filtered.length === 0) {
+              console.log("[HOST] 🚨 LAST PLAYER LEFT - Forcing empty state")
+            }
+            
+            return filtered
+          })
+          
+          setPlayerProgress(prev => {
+            const filtered = prev.filter(p => p.id !== deletedPlayerId)
+            const sorted = filtered.sort((a, b) => b.score - a.score)
+            const ranked = sorted.map((p, idx) => ({ ...p, rank: idx + 1 }))
+            console.log(`[HOST] 📊 Updated progress after "${deletedPlayerName}" left. Remaining:`, ranked.length)
+            
+            // Special handling for last player
+            if (ranked.length === 0) {
+              console.log("[HOST] 🚨 PROGRESS NOW EMPTY - All players gone")
+            }
+            
+            return ranked
+          })
+          
+          // Force re-render by resetting pagination for empty state
+          if (players.length === 1) { // Will become 0 after deletion
+            console.log("[HOST] 🔄 Last player leaving, resetting pagination and forcing update")
+            setCurrentPlayerPage(0)
+            setCurrentProgressPage(0)
+            // Force component re-render for last player scenario
+            setTimeout(() => setForceUpdateKey(prev => prev + 1), 100)
+          }
+          
+          // Multiple backup refreshes for last player scenario
+          setTimeout(() => {
+            console.log("[HOST] 🔄 First backup refresh after player deletion")
+            fetchPlayers()
+            updatePlayerProgress()
+          }, 300)
+          
+          // Additional refresh for last player
+          setTimeout(() => {
+            console.log("[HOST] 🔄 Second backup refresh (last player safety)")
+            fetchPlayers()
+            updatePlayerProgress()
+          }, 1000)
         },
       )
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "players", filter: `game_id=eq.${gameId}` },
-        (payload) => {
-          console.log("[v0] Player updated:", payload.new)
-          fetchPlayers()
-          updatePlayerProgress()
+        async (payload) => {
+          console.log("[HOST] 🔄 Player updated:", payload.new)
+          const updatedPlayer = payload.new as Player
+          
+          // Immediate state update
+          setPlayers(prev => prev.map(p => p.id === updatedPlayer.id ? updatedPlayer : p))
+          
+          // Update progress
+          setPlayerProgress(prev => {
+            const updated = prev.map(p => p.id === updatedPlayer.id ? {
+              ...p,
+              name: updatedPlayer.name,
+              avatar: updatedPlayer.avatar || p.avatar,
+              score: updatedPlayer.score || 0,
+            } : p)
+            const sorted = updated.sort((a, b) => b.score - a.score)
+            return sorted.map((p, idx) => ({ ...p, rank: idx + 1 }))
+          })
+          
+          // Backup refresh
+          setTimeout(() => {
+            fetchPlayers()
+            updatePlayerProgress()
+          }, 500)
         },
       )
-      .subscribe()
+      .subscribe((status) => {
+        console.log("[HOST] 📡 Players subscription status:", status)
+        if (status === 'SUBSCRIBED') {
+          console.log("[HOST] ✅ Successfully subscribed to player changes")
+        }
+      })
 
     const answersSubscription = supabase
       .channel("player_answers")
@@ -937,10 +1093,58 @@ export default function HostContent({ gameCode }: HostContentProps) {
       updatePlayerProgress()
     }, 50)
 
+    // Add periodic health check as fallback
+    const healthCheckInterval = setInterval(async () => {
+      if (!gameId) return
+      
+      try {
+        // Check player count from database
+        const { data: currentPlayers, error } = await supabase
+          .from("players")
+          .select("id, name")
+          .eq("game_id", gameId)
+        
+        if (error) {
+          console.error("[HOST] ❌ Health check error:", error)
+          return
+        }
+        
+        const dbPlayerCount = currentPlayers?.length || 0
+        const statePlayerCount = players.length
+        
+        // If there's a mismatch, update the state
+        if (dbPlayerCount !== statePlayerCount) {
+          console.log(`[HOST] 🔄 Player count mismatch! DB: ${dbPlayerCount}, State: ${statePlayerCount}`)
+          console.log("[HOST] 🔄 Current players in DB:", currentPlayers?.map(p => p.name))
+          console.log("[HOST] 🔄 Current players in state:", players.map(p => p.name))
+          
+          // Special handling when DB shows 0 but state still has players
+          if (dbPlayerCount === 0 && statePlayerCount > 0) {
+            console.log("[HOST] 🚨 DATABASE EMPTY but state has players - Force clearing state")
+            setPlayers([])
+            setPlayerProgress([])
+            setCurrentPlayerPage(0)
+            setCurrentProgressPage(0)
+            // Force component re-render
+            setForceUpdateKey(prev => prev + 1)
+          }
+          
+          // Force refresh
+          setTimeout(() => {
+            fetchPlayers()
+            updatePlayerProgress()
+          }, 100)
+        }
+      } catch (error) {
+        console.error("[HOST] ❌ Health check failed:", error)
+      }
+    }, 1500) // Check every 1.5 seconds for faster detection
+
     return () => {
       supabase.removeChannel(gameSubscription)
       supabase.removeChannel(playersSubscription)
       supabase.removeChannel(answersSubscription)
+      clearInterval(healthCheckInterval)
     }
   }, [gameId, fetchPlayers, updatePlayerProgress])
 
