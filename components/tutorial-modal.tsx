@@ -52,7 +52,7 @@ export function TutorialModal({ open, onClose, onConfirm }: TutorialModalProps) 
           <div className="space-y-3 text-gray-700 text-sm sm:text-base">
             <h3 className="font-semibold text-purple-600">🚀 Mini-Game Guide</h3>
             <p>
-              After every <strong>3 correct answers</strong>, you'll enter a mini-game!
+              After every <strong>3 correct answers</strong>, you&apos;ll enter a mini-game!
             </p>
             <div className="flex justify-center">
               <Image
@@ -78,15 +78,26 @@ export function TutorialModal({ open, onClose, onConfirm }: TutorialModalProps) 
               Back
             </Button>
           )}
-          {step < 2 ? (
-            <Button onClick={nextStep} className="ml-auto">
-              Next
-            </Button>
-          ) : (
-            <Button onClick={handleFinish} className="ml-auto">
-              Start
-            </Button>
-          )}
+          <div className="flex gap-2 ml-auto">
+            {step < 2 && (
+              <Button 
+                variant="outline" 
+                onClick={handleFinish}
+                className="text-gray-600 hover:text-gray-800"
+              >
+                Skip
+              </Button>
+            )}
+            {step < 2 ? (
+              <Button onClick={nextStep}>
+                Next
+              </Button>
+            ) : (
+              <Button onClick={handleFinish}>
+                Start
+              </Button>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

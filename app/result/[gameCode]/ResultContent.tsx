@@ -9,6 +9,7 @@ import { useGameStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Trophy, Medal, Crown, Star } from "lucide-react";
+import { getFirstName } from "@/lib/utils";
 
 interface PlayerResult {
   id: string;
@@ -178,13 +179,13 @@ export default function ResultContent({ gameCode }: { gameCode: string }) {
                       {style.icon}
                       <img 
                         src={player.avatar} 
-                        alt={player.name}
+                        alt={getFirstName(player.name)}
                         className="w-12 h-12 rounded-full object-cover border-2 border-white/20"
                       />
                     </div>
                     
                     <div className="flex-1">
-                      <p className="text-white font-semibold text-lg">{player.name}</p>
+                      <p className="text-white font-semibold text-lg">{getFirstName(player.name)}</p>
                       <p className="text-slate-300 text-sm">Score</p>
                     </div>
                     
@@ -244,7 +245,7 @@ export default function ResultContent({ gameCode }: { gameCode: string }) {
             >
               <img
                 src={playerAvatar || "/default-avatar.png"}
-                alt={playerName}
+                alt={getFirstName(playerName)}
                 className="w-32 h-32 rounded-full mx-auto object-cover border-4 border-purple-500 shadow-lg"
               />
               <motion.div
@@ -257,7 +258,7 @@ export default function ResultContent({ gameCode }: { gameCode: string }) {
             </motion.div>
 
             <div>
-              <h1 className="text-3xl font-bold text-white mb-2">{playerName || "Unknown Player"}</h1>
+              <h1 className="text-3xl font-bold text-white mb-2">{getFirstName(playerName) || "Unknown Player"}</h1>
               <div className="space-y-2">
                 <motion.p 
                   className="text-6xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent"

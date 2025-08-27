@@ -30,6 +30,7 @@ import type { Quiz, Player } from "@/lib/types"
 import { RulesDialog } from "@/components/rules-dialog"
 import { QRCodeModal } from "@/components/qr-code-modal"
 import { syncServerTime } from "@/lib/server-time"
+import { getFirstName } from "@/lib/utils"
 
 // === TYPES ===
 interface PlayerProgress {
@@ -200,7 +201,7 @@ const PodiumLeaderboard = React.memo(
                     >
                       <Image
                         src={onlyPlayer.avatar || "/placeholder.svg"}
-                        alt={onlyPlayer.name}
+                        alt={getFirstName(onlyPlayer.name)}
                         width={200}
                         height={200}
                         className="w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40 lg:w-48 lg:h-48 rounded-full border-4 sm:border-6 lg:border-8 border-yellow-400 object-cover relative z-10 shadow-[0_0_20px_rgba(255,215,0,0.8)] sm:shadow-[0_0_40px_rgba(255,215,0,0.8)]"
@@ -215,7 +216,7 @@ const PodiumLeaderboard = React.memo(
                     className="text-center mt-6"
                   >
                     <h2 className="font-bold text-lg sm:text-2xl md:text-3xl lg:text-4xl mb-2 text-yellow-300 drop-shadow-lg text-center">
-                      {onlyPlayer.name}
+                      {getFirstName(onlyPlayer.name)}
                     </h2>
                     <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-black px-3 sm:px-6 py-2 sm:py-3 rounded-full font-bold text-base sm:text-xl lg:text-2xl shadow-lg">
                       {onlyPlayer.score} POINTS
@@ -287,7 +288,7 @@ const PodiumLeaderboard = React.memo(
                         <div className="absolute inset-0 rounded-full bg-gradient-to-r from-gray-300 to-gray-400 blur-md opacity-60 animate-pulse" />
                         <Image
                           src={second.avatar || "/placeholder.svg"}
-                          alt={second.name}
+                          alt={getFirstName(second.name)}
                           width={120}
                           height={120}
                           className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-28 lg:h-28 rounded-full border-4 sm:border-6 border-gray-300 object-cover relative z-10 shadow-[0_0_15px_rgba(192,192,192,0.6)] sm:shadow-[0_0_25px_rgba(192,192,192,0.6)]"
@@ -295,7 +296,7 @@ const PodiumLeaderboard = React.memo(
                       </div>
                       <div className="text-center mt-2 sm:mt-4">
                         <div className="text-lg sm:text-2xl mb-1 sm:mb-2">🥈</div>
-                        <h3 className="font-bold text-sm sm:text-lg lg:text-xl text-gray-300 truncate">{second.name}</h3>
+                        <h3 className="font-bold text-sm sm:text-lg lg:text-xl text-gray-300 truncate">{getFirstName(second.name)}</h3>
                         <div className="bg-gradient-to-r from-gray-300 to-gray-400 text-gray-800 px-2 sm:px-4 py-1 sm:py-2 rounded-full font-bold text-xs sm:text-sm lg:text-base mt-1 sm:mt-2">
                           {second.score} PTS
                         </div>
@@ -322,7 +323,7 @@ const PodiumLeaderboard = React.memo(
                         <div className="absolute inset-0 rounded-full bg-gradient-to-r from-yellow-400 to-yellow-500 blur-lg opacity-70 animate-pulse" />
                         <Image
                           src={first.avatar || "/placeholder.svg"}
-                          alt={first.name}
+                          alt={getFirstName(first.name)}
                           width={160}
                           height={160}
                           className="w-20 h-20 sm:w-28 sm:h-28 md:w-32 md:h-32 lg:w-36 lg:h-36 rounded-full border-4 sm:border-6 lg:border-8 border-yellow-400 object-cover relative z-10 shadow-[0_0_25px_rgba(255,215,0,0.8)] sm:shadow-[0_0_35px_rgba(255,215,0,0.8)]"
@@ -330,7 +331,7 @@ const PodiumLeaderboard = React.memo(
                       </div>
                       <div className="text-center mt-2 sm:mt-4">
                         <div className="text-2xl sm:text-3xl mb-1 sm:mb-2">🥇</div>
-                        <h3 className="font-bold text-base sm:text-xl lg:text-2xl text-yellow-300 truncate">{first.name}</h3>
+                        <h3 className="font-bold text-base sm:text-xl lg:text-2xl text-yellow-300 truncate">{getFirstName(first.name)}</h3>
                         <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-black px-3 sm:px-6 py-2 sm:py-3 rounded-full font-bold text-sm sm:text-base lg:text-lg mt-1 sm:mt-2">
                           {first.score} PTS
                         </div>
@@ -413,7 +414,7 @@ const PodiumLeaderboard = React.memo(
                         <div className="absolute inset-0 rounded-full bg-gradient-to-r from-amber-600 to-amber-700 blur-md opacity-50 animate-pulse" />
                         <Image
                           src={third.avatar || "/placeholder.svg"}
-                          alt={third.name}
+                          alt={getFirstName(third.name)}
                           width={100}
                           height={100}
                           className="w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-20 lg:h-20 rounded-full border-2 sm:border-3 border-amber-600 object-cover relative z-10 shadow-[0_0_10px_rgba(217,119,6,0.6)] sm:shadow-[0_0_15px_rgba(217,119,6,0.6)]"
@@ -421,7 +422,7 @@ const PodiumLeaderboard = React.memo(
                       </div>
                       <div className="text-center mt-2 sm:mt-3">
                         <div className="text-base sm:text-xl lg:text-2xl mb-1">🥉</div>
-                        <h3 className="font-bold text-xs sm:text-sm lg:text-base text-amber-300 truncate">{third.name}</h3>
+                        <h3 className="font-bold text-xs sm:text-sm lg:text-base text-amber-300 truncate">{getFirstName(third.name)}</h3>
                         <div className="bg-gradient-to-r from-amber-600 to-amber-700 text-white px-2 sm:px-3 py-1 rounded-full font-bold text-xs mt-1">
                           {third.score}
                         </div>
@@ -456,7 +457,7 @@ const PodiumLeaderboard = React.memo(
                         >
                           <Image
                             src={first.avatar || "/placeholder.svg"}
-                            alt={first.name}
+                            alt={getFirstName(first.name)}
                             width={200}
                             height={200}
                             className="w-14 h-14 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-32 lg:h-32 rounded-full border-3 sm:border-4 lg:border-6 border-yellow-400 object-cover relative z-10 shadow-[0_0_20px_rgba(255,215,0,0.9)] sm:shadow-[0_0_30px_rgba(255,215,0,0.9)]"
@@ -471,7 +472,7 @@ const PodiumLeaderboard = React.memo(
                         >
                           🥇
                         </motion.div>
-                        <h3 className="font-bold text-sm sm:text-xl lg:text-2xl xl:text-3xl text-yellow-300 mb-1 sm:mb-2 truncate">{first.name}</h3>
+                        <h3 className="font-bold text-sm sm:text-xl lg:text-2xl xl:text-3xl text-yellow-300 mb-1 sm:mb-2 truncate">{getFirstName(first.name)}</h3>
                         <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-black px-3 sm:px-6 py-2 sm:py-3 rounded-full font-bold text-sm sm:text-lg lg:text-xl shadow-[0_0_15px_rgba(255,215,0,0.5)] sm:shadow-[0_0_20px_rgba(255,215,0,0.5)]">
                           {first.score} PTS
                         </div>
@@ -498,7 +499,7 @@ const PodiumLeaderboard = React.memo(
                         <div className="absolute inset-0 rounded-full bg-gradient-to-r from-gray-300 to-gray-400 blur-md opacity-60 animate-pulse" />
                         <Image
                           src={second.avatar || "/placeholder.svg"}
-                          alt={second.name}
+                          alt={getFirstName(second.name)}
                           width={120}
                           height={120}
                           className="w-10 h-10 sm:w-16 sm:h-16 md:w-18 md:h-18 lg:w-22 lg:h-22 rounded-full border-2 sm:border-3 lg:border-4 border-gray-300 object-cover relative z-10 shadow-[0_0_12px_rgba(192,192,192,0.7)] sm:shadow-[0_0_20px_rgba(192,192,192,0.7)]"
@@ -506,7 +507,7 @@ const PodiumLeaderboard = React.memo(
                       </div>
                       <div className="text-center mt-2 sm:mt-3">
                         <div className="text-lg sm:text-2xl lg:text-3xl mb-1">🥈</div>
-                        <h3 className="font-bold text-xs sm:text-base lg:text-lg text-gray-300 truncate">{second.name}</h3>
+                        <h3 className="font-bold text-xs sm:text-base lg:text-lg text-gray-300 truncate">{getFirstName(second.name)}</h3>
                         <div className="bg-gradient-to-r from-gray-300 to-gray-400 text-gray-800 px-2 sm:px-4 py-1 sm:py-2 rounded-full font-bold text-xs sm:text-sm lg:text-base mt-1 sm:mt-2">
                           {second.score} PTS
                         </div>
@@ -543,13 +544,13 @@ const PodiumLeaderboard = React.memo(
                         </div>
                         <Image
                           src={p.avatar || "/placeholder.svg"}
-                          alt={p.name}
+                          alt={getFirstName(p.name)}
                           width={40}
                           height={40}
                           className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-purple-400 object-cover"
                         />
                         <div className="flex-1 min-w-0">
-                          <p className="font-bold text-white truncate text-xs sm:text-sm">{p.name}</p>
+                          <p className="font-bold text-white truncate text-xs sm:text-sm">{getFirstName(p.name)}</p>
                           <p className="text-purple-300 text-xs sm:text-sm font-semibold">{p.score} pts</p>
                         </div>
                       </div>
@@ -597,6 +598,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
 
   const [copied, setCopied] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
+
   const [showExitModal, setShowExitModal] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
   const [mounted, setMounted] = useState(false)
@@ -1174,7 +1176,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
         }}
       />
       <RulesDialog open={false} onOpenChange={() => {}} quiz={quiz} onStartGame={() => {}} />
-      <QRCodeModal open={showQRModal} onOpenChange={setShowQRModal} gameCode={gameCode} joinUrl={joinUrl} />
+      <QRCodeModal open={showQRModal} onOpenChange={setShowQRModal} joinUrl={joinUrl} />
 
       <div className="fixed inset-0 z-0 overflow-hidden bg-black">
         <div className="absolute inset-0">
@@ -1269,8 +1271,8 @@ export default function HostContent({ gameCode }: HostContentProps) {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-8">
             <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}>
               <div className="bg-white/10 border-2 border-white/20 p-4 sm:p-6 rounded-lg backdrop-blur-sm">
-                <h2 className="text-base sm:text-lg font-bold mb-4 flex items-center gap-2">
-                  <QrCode className="w-4 h-4 sm:w-5 sm:h-5" /> Game Code
+                <h2 className="text-base sm:text-2xl font-bold mb-4 flex items-center gap-2">
+                  Space-Dodge Quiz
                 </h2>
 
                 <div className="flex flex-wrap gap-2 sm:gap-4 justify-center mb-4">
@@ -1286,7 +1288,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
 
                 <div className="text-center">
                   <div className="relative inline-block w-full max-w-sm sm:max-w-md">
-                    <div className="text-2xl sm:text-3xl lg:text-5xl font-mono font-bold bg-white text-black rounded-lg py-4 sm:py-6 lg:py-8 px-6 sm:px-8 lg:px-12 mb-4 pr-8 sm:pr-12 lg:pr-16 w-full">
+                    <div className="text-2xl sm:text-3xl lg:text-7xl font-mono font-bold bg-white text-black rounded-lg py-4 sm:py-6 lg:py-8 px-6 sm:px-8 lg:px-12 mb-1 pr-8 sm:pr-12 lg:pr-16 w-full">
                       {gameCode}
                     </div>
                     <button
@@ -1303,37 +1305,32 @@ export default function HostContent({ gameCode }: HostContentProps) {
                   </div>
 
                   <div className="relative inline-block mb-4 w-full max-w-sm sm:max-w-md">
-                    <button
-                      onClick={() => setShowQRModal(true)}
-                      className="bg-white text-black rounded-lg py-4 sm:py-6 lg:py-8 px-4 sm:px-8 lg:px-12 w-full flex justify-center items-center hover:bg-gray-50 transition-colors cursor-pointer"
-                      title="Click to enlarge QR code"
-                    >
-                      <QRCodeSVG value={joinUrl} size={120} className="sm:w-[140px] sm:h-[140px] lg:w-[180px] lg:h-[180px]" />
-                    </button>
-                  </div>
-
-                  <div className="mb-4">
-                    <p className="text-xs sm:text-sm text-white/70 mb-2">Join Link:</p>
-                    <div className="flex items-center gap-2 bg-white/20 rounded-lg p-2 sm:p-3">
-                      <span className="text-xs sm:text-sm font-mono break-all flex-1">{joinUrl}</span>
+                    <div className="bg-white text-black rounded-lg py-4 sm:py-6 lg:py-8 px-4 sm:px-8 lg:px-12 w-full flex flex-col justify-center items-center">
                       <button
-                        onClick={handleCopyLink}
-                        className="p-2 hover:bg-white/10 rounded transition-colors flex-shrink-0"
-                        title="Copy join link"
+                        onClick={() => setShowQRModal(true)}
+                        className="hover:opacity-80 transition-opacity cursor-pointer mb-4"
+                        title="Click to enlarge QR code"
                       >
-                        {linkCopied ? (
-                          <Check className="w-4 h-4 text-green-400" />
-                        ) : (
-                          <Copy className="w-4 h-4 text-white/70" />
-                        )}
+                        <QRCodeSVG value={joinUrl} size={120} className="sm:w-[140px] sm:h-[140px] lg:w-[335px] lg:h-[335px]" />
                       </button>
+                      <div className="w-full">
+                      
+                        <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-2 sm:p-3">
+                          <span className="text-xs sm:text-sm font-mono break-all flex-1 text-gray-900">{joinUrl}</span>
+                          <button
+                            onClick={handleCopyLink}
+                            className="p-2 hover:bg-gray-200 rounded transition-colors flex-shrink-0"
+                            title="Copy join link"
+                          >
+                            {linkCopied ? (
+                              <Check className="w-4 h-4 text-green-600" />
+                            ) : (
+                              <Copy className="w-4 h-4 text-gray-600" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-
-                  <div className="flex justify-center">
-                    <PixelButton color="red" size="sm" onClick={() => setShowExitModal(true)}>
-                      ❌ Exit Game
-                    </PixelButton>
                   </div>
                 </div>
               </div>
@@ -1345,9 +1342,14 @@ export default function HostContent({ gameCode }: HostContentProps) {
                   <h2 className="text-base sm:text-lg font-bold flex items-center gap-2">
                     <Users className="w-4 h-4 sm:w-5 sm:h-5" /> Players ({players.length})
                   </h2>
-                  <PixelButton color="green" onClick={startQuiz} disabled={players.length === 0 || isStarting}>
-                    <Play className="w-4 h-4 inline-block mr-2" /> Start Quiz
-                  </PixelButton>
+                  <div className="flex gap-2 sm:gap-3">
+                    <PixelButton color="red" size="sm" onClick={() => setShowExitModal(true)}>
+                      ❌ Exit Game
+                    </PixelButton>
+                    <PixelButton color="green" onClick={startQuiz} disabled={players.length === 0 || isStarting}>
+                      <Play className="w-4 h-4 inline-block mr-2" /> Start Quiz
+                    </PixelButton>
+                  </div>
                 </div>
 
 {players.length === 0 ? (
@@ -1379,16 +1381,14 @@ export default function HostContent({ gameCode }: HostContentProps) {
                             >
                               <Image
                                 src={player.avatar || "/placeholder.svg?height=48&width=48&text=Player"}
-                                alt={player.name}
+                                alt={getFirstName(player.name)}
                                 width={48}
                                 height={48}
                                 className="w-8 h-8 sm:w-12 sm:h-12 rounded-full border-2 border-white/30 object-cover"
                               />
                               <div className="text-center">
-                                <h3 className="font-bold text-xs sm:text-sm truncate max-w-full">{player.name}</h3>
-                                <p className="text-xs text-white/70">Ready</p>
+                                <h3 className="font-bold text-xs sm:text-sm truncate max-w-full">{getFirstName(player.name)}</h3>
                               </div>
-                              <span className="text-green-400 text-xs">✔</span>
                             </motion.div>
                           ))}
                         </motion.div>
@@ -1479,14 +1479,14 @@ export default function HostContent({ gameCode }: HostContentProps) {
 
                           <Image
                             src={player.avatar || "/placeholder.svg"}
-                            alt={player.name}
+                            alt={getFirstName(player.name)}
                             width={40}
                             height={40}
                             className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover"
                           />
 
                           <div className="flex-1 min-w-0">
-                            <p className="font-bold text-white text-sm sm:text-base truncate">{player.name}</p>
+                            <p className="font-bold text-white text-sm sm:text-base truncate">{getFirstName(player.name)}</p>
                             <p className="text-yellow-300 text-xs sm:text-sm">{player.score} pts</p>
                           </div>
 

@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase"
 import { cleanupPresence } from "@/lib/presence"
 import { syncServerTime } from "@/lib/server-time"
 import { toast } from "sonner"
+import { getFirstName } from "@/lib/utils"
 
 interface WaitContentProps {
   gameCode: string
@@ -305,13 +306,13 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
           <h1 className="text-2xl mb-4 drop-shadow-[2px_2px_0px_#000]">Get Ready!</h1>
           <motion.img
             src={playerAvatar}
-            alt={playerName}
+            alt={getFirstName(playerName)}
             className="w-32 h-32 rounded-full object-cover mx-auto mb-4 border-2 border-white"
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.2, type: "spring" }}
           />
-          <p className="text-lg mb-2 drop-shadow-[1px_1px_0px_#000]">{playerName}</p>
+          <p className="text-lg mb-2 drop-shadow-[1px_1px_0px_#000]">{getFirstName(playerName)}</p>
           <p className="text-sm text-white/70 mb-6">
             Waiting to start
             <motion.span
