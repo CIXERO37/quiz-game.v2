@@ -13,6 +13,8 @@ type TranslationKey =
   | 'enterName' | 'chooseAvatar' | 'gameCodeQR' | 'waitForHost' | 'miniGameGuide'
   | 'afterCorrect' | 'correctAnswers' | 'enterMiniGame' | 'swipeRocket' | 'avoidMeteors'
   | 'collectItems' | 'reducePoints' | 'increasePoints' | 'skip' | 'start' | 'name'
+  | 'quizNotFound' | 'goHome' | 'loadingQuiz' | 'waitingForHost' | 'progress' | 'questionOf'
+  | 'questionImage'
 
 const translations: Record<string, Record<TranslationKey, string>> = {
   en: {
@@ -91,7 +93,16 @@ const translations: Record<string, Record<TranslationKey, string>> = {
     "reducePoints": "reduce your points",
     "increasePoints": "increase your points",
     "skip": "Skip",
-    "start": "Start"
+    "start": "Start",
+    
+    // Error and loading messages
+    "quizNotFound": "Quiz not found or invalid quiz ID.",
+    "goHome": "Go Home",
+    "loadingQuiz": "Loading quiz...",
+    "waitingForHost": "Waiting for host to start...",
+    "progress": "Progress",
+    "questionOf": "Question {current} of {total}",
+    "questionImage": "Question image"
   },
   id: {
     // Main page
@@ -169,7 +180,16 @@ const translations: Record<string, Record<TranslationKey, string>> = {
     "reducePoints": "mengurangi poin",
     "increasePoints": "menambah poin",
     "skip": "Lewati",
-    "start": "Mulai"
+    "start": "Mulai",
+    
+    // Error and loading messages
+    "quizNotFound": "Kuis tidak ditemukan atau ID kuis tidak valid.",
+    "goHome": "Kembali ke Beranda",
+    "loadingQuiz": "Memuat kuis...",
+    "waitingForHost": "Menunggu host untuk memulai...",
+    "progress": "Progress",
+    "questionOf": "Pertanyaan {current} dari {total}",
+    "questionImage": "Gambar soal"
   },
   zh: {
     // Main page
@@ -247,7 +267,16 @@ const translations: Record<string, Record<TranslationKey, string>> = {
     "reducePoints": "减少分数",
     "increasePoints": "增加分数",
     "skip": "跳过",
-    "start": "开始"
+    "start": "开始",
+    
+    // Error and loading messages
+    "quizNotFound": "找不到测验或测验ID无效。",
+    "goHome": "返回首页",
+    "loadingQuiz": "加载测验中...",
+    "waitingForHost": "等待主持人开始...",
+    "progress": "进度",
+    "questionOf": "第 {current} 题，共 {total} 题",
+    "questionImage": "问题图片"
   }
 }
 
