@@ -393,3 +393,67 @@ body { font-family: 'Press Start 2P', cursive; }
   animation: pulse 3s ease-in-out infinite;
   box-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
 }
+
+/* Mobile Performance Optimizations for Mini Game */
+@media (max-width: 768px) {
+  /* Touch optimizations */
+  * {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  
+  /* Hardware acceleration for mobile */
+  .mini-game-container {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+    will-change: transform;
+  }
+  
+  /* Reduce motion for better performance on low-end devices */
+  @media (prefers-reduced-motion: reduce) {
+    .mini-game-container * {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+  
+  /* Optimize backdrop blur for mobile */
+  .backdrop-blur-md {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  
+  /* Reduce shadow complexity on mobile */
+  .shadow-lg {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  }
+}
+
+/* Low-end device optimizations */
+@media (max-width: 480px) {
+  .mini-game-container {
+    /* Reduce visual effects for better performance */
+    filter: none;
+  }
+  
+  /* Simplify gradients for better performance */
+  .bg-gradient-to-br {
+    background: linear-gradient(135deg, var(--tw-gradient-stops));
+  }
+}
+
+/* Performance optimizations for all devices */
+.mini-game-container {
+  contain: layout style paint;
+  isolation: isolate;
+}
+
+.mini-game-item {
+  contain: layout style;
+  will-change: transform;
+  transform: translateZ(0);
+}

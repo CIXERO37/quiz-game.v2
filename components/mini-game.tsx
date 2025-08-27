@@ -1,8 +1,9 @@
 "use client"
 
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Clock, Trophy, Zap, Star, Heart, Bomb } from 'lucide-react'
+import { useMobileOptimization } from '@/hooks/use-mobile-optimization'
 
 interface MiniGameProps {
   level?: number
@@ -26,6 +27,14 @@ export default function MiniGame({ level = 1, onComplete }: MiniGameProps) {
   const [items, setItems] = useState<Item[]>([])
   const [score, setScore] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
+  
+  // Performance optimization refs
+  const animationFrameRef = useRef<number>()
+  const lastFrameTime = useRef(performance.now())
+  const itemPool = useRef<Item[]>([])
+  
+  // Use mobile optimization hook
+  const mobileConfig = useMobileOptimization(level)
 
   const itemTypes = useMemo(() => [
     { type: 'positive' as const, icon: <Star className="w-6 h-6" />, points: 50 },
@@ -33,6 +42,29 @@ export default function MiniGame({ level = 1, onComplete }: MiniGameProps) {
     { type: 'positive' as const, icon: <Zap className="w-6 h-6" />, points: 40 },
     { type: 'negative' as const, icon: <Bomb className="w-6 h-6" />, points: -30 },
   ], [])
+
+  // Optimized item spawning with object pooling
+  const spawnItem = useCallback(() => {
+    if (!containerRef.current || items.length >= mobileConfig.maxItems) return
+    
+    const rect = containerRef.current.getBoundingClientRect()
+    const itemType = itemTypes[Math.floor(Math.random() * itemTypes.length)]
+    const x = Math.random() * (rect.width - 60) + 30
+    const y = Math.random() * (rect.height - 60) + 30
+    
+    const newItem: Item = {
+      id: Math.random().toString(36).substring(7),
+      type: itemType.type,
+      icon: itemType.icon,
+      points: itemType.points,
+      x,
+      y,
+      vx: (Math.random() - 0.5) * 2.5 * mobileConfig.velocityMultiplier,
+      vy: (Math.random() - 0.5) * 2.5 * mobileConfig.velocityMultiplier,
+    }
+    
+    setItems(prev => [...prev, newItem])
+  }, [itemTypes, items.length, mobileConfig.maxItems, mobileConfig.velocityMultiplier])
 
   // ---------- STAGE: GAME ----------
   useEffect(() => {
@@ -48,55 +80,72 @@ export default function MiniGame({ level = 1, onComplete }: MiniGameProps) {
     return () => clearInterval(timer)
   }, [])
 
+  // Optimized item spawning with adaptive timing
   useEffect(() => {
-    const spawnItem = () => {
-      if (!containerRef.current) return
-      const rect = containerRef.current.getBoundingClientRect()
-      const itemType = itemTypes[Math.floor(Math.random() * itemTypes.length)]
-      const x = Math.random() * (rect.width - 60) + 30
-      const y = Math.random() * (rect.height - 60) + 30
-      const newItem: Item = {
-        id: Math.random().toString(36).substring(7),
-        type: itemType.type,
-        icon: itemType.icon,
-        points: itemType.points,
-        x,
-        y,
-        vx: (Math.random() - 0.5) * 2.5,
-        vy: (Math.random() - 0.5) * 2.5,
-      }
-      setItems((prev) => [...prev, newItem])
+    const interval = setInterval(spawnItem, mobileConfig.spawnInterval)
+    return () => clearInterval(interval)
+  }, [level, spawnItem, mobileConfig.spawnInterval])
+
+  // Optimized game loop using requestAnimationFrame
+  const gameLoop = useCallback((currentTime: number) => {
+    if (stage !== 'game' || !containerRef.current) {
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
+      return
     }
 
-    const interval = setInterval(spawnItem, Math.max(500, 1000 - level * 100))
-    return () => clearInterval(interval)
-  }, [level, itemTypes])
-
-  useEffect(() => {
-    const moveInterval = setInterval(() => {
-      if (!containerRef.current) return
+    const deltaTime = Math.min((currentTime - lastFrameTime.current) / 1000, 0.033)
+    lastFrameTime.current = currentTime
+    
+    // Adaptive frame rate for mobile
+    const frameInterval = 1000 / mobileConfig.frameRate
+    
+    if (deltaTime * 1000 >= frameInterval) {
       const rect = containerRef.current.getBoundingClientRect()
-      setItems((prev) =>
-        prev.map((item) => ({
+      
+      setItems(prev => 
+        prev.map(item => ({
           ...item,
-          x: Math.max(0, Math.min(item.x + (item.vx ?? 0), rect.width - 48)),
-          y: Math.max(0, Math.min(item.y + (item.vy ?? 0), rect.height - 48)),
+          x: Math.max(0, Math.min(item.x + (item.vx ?? 0) * deltaTime * 60, rect.width - 48)),
+          y: Math.max(0, Math.min(item.y + (item.vy ?? 0) * deltaTime * 60, rect.height - 48)),
         }))
       )
-    }, 50)
-    return () => clearInterval(moveInterval)
-  }, [])
+    }
 
-  const collectItem = (item: Item) => {
-    setItems((prev) => prev.filter((i) => i.id !== item.id))
-    setScore((prev) => prev + item.points)
-  }
+    animationFrameRef.current = requestAnimationFrame(gameLoop)
+  }, [stage])
+
+  // Start game loop
+  useEffect(() => {
+    if (stage === 'game') {
+      animationFrameRef.current = requestAnimationFrame(gameLoop)
+    }
+    
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+      }
+    }
+  }, [stage, gameLoop])
+
+  const collectItem = useCallback((item: Item) => {
+    setItems(prev => prev.filter(i => i.id !== item.id))
+    setScore(prev => prev + item.points)
+  }, [])
 
   useEffect(() => {
     if (stage === 'end') {
       setTimeout(() => onComplete(score), 2000)
     }
   }, [stage, score, onComplete])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+      }
+    }
+  }, [])
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-purple-500 via-blue-600 to-indigo-700 font-mono text-white">
@@ -108,7 +157,7 @@ export default function MiniGame({ level = 1, onComplete }: MiniGameProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="w-full h-full relative"
+            className="w-full h-full relative mini-game-container"
             ref={containerRef}
           >
             {/* Header */}
@@ -122,22 +171,31 @@ export default function MiniGame({ level = 1, onComplete }: MiniGameProps) {
               </div>
             </div>
 
-            {/* Items */}
+            {/* Items with optimized rendering */}
             <AnimatePresence>
               {items.map((item) => (
                 <motion.div
                   key={item.id}
-                  layout
+                  layout={false} // Disable layout animation for better performance
                   initial={{ scale: 0, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0, opacity: 0 }}
-                  style={{ position: 'absolute', left: item.x, top: item.y }}
-                  className={`w-14 h-14 rounded-full flex items-center justify-center cursor-pointer shadow-lg text-white ${
+                  style={{ 
+                    position: 'absolute', 
+                    left: item.x, 
+                    top: item.y
+                  }}
+                  className={`w-14 h-14 rounded-full flex items-center justify-center cursor-pointer shadow-lg text-white mini-game-item ${
                     item.type === 'positive'
                       ? 'bg-gradient-to-br from-yellow-400 to-orange-500'
                       : 'bg-gradient-to-br from-red-500 to-red-700'
                   }`}
                   onClick={() => collectItem(item)}
+                  // Touch optimization for mobile
+                  onTouchStart={(e) => {
+                    e.preventDefault()
+                    collectItem(item)
+                  }}
                 >
                   {item.icon}
                 </motion.div>
