@@ -38,18 +38,53 @@ export default function HomePage() {
   const [hasShownTutorial, setHasShownTutorial] = useState(false)
 
   const handleGameCodeDetected = (code: string) => {
-    console.log("Setting game code:", code) // Debug log
+    console.log("🎯 Game code detected:", code)
+    console.log("🎯 Current state - showTutorial:", showTutorial, "hasShownTutorial:", hasShownTutorial)
+    
     setGameCodeFromUrl(code)
+    
+    // Reset state untuk memastikan tutorial muncul
+    setShowJoinGame(false)
+    setShowTutorial(false)
+    
+    // Selalu tampilkan tutorial untuk user baru dari link join
     if (!hasShownTutorial) {
+      console.log("🎯 First time user - showing tutorial")
       setShowTutorial(true)
       setHasShownTutorial(true)
     } else {
-      setShowJoinGame(true) // Langsung ke dialog jika sudah pernah lihat tutorial
+      console.log("🎯 Returning user - showing tutorial again")
+      // Untuk user yang sudah pernah lihat, tetap tampilkan tutorial
+      setShowTutorial(true)
     }
+    
+    console.log("🎯 After state update - showTutorial:", true, "gameCodeFromUrl:", code)
   }
 
   const handleHostGame = () => {
     router.push("/select-quiz")
+  }
+
+  // Handle tutorial close
+  const handleTutorialClose = () => {
+    console.log("🎯 Tutorial closed")
+    setShowTutorial(false)
+    // Jika ada game code dari URL, langsung buka dialog join
+    if (gameCodeFromUrl) {
+      console.log("🎯 Opening join game dialog after tutorial close")
+      setShowJoinGame(true)
+    }
+  }
+
+  // Handle tutorial confirm (user selesai tutorial)
+  const handleTutorialConfirm = () => {
+    console.log("🎯 Tutorial confirmed")
+    setShowTutorial(false)
+    // Jika ada game code dari URL, langsung buka dialog join
+    if (gameCodeFromUrl) {
+      console.log("🎯 Opening join game dialog after tutorial confirm")
+      setShowJoinGame(true)
+    }
   }
 
   // Handle closing of JoinGameDialog
@@ -280,16 +315,8 @@ export default function HomePage() {
       {showTutorial && (
         <TutorialModal
           open={showTutorial}
-          onClose={() => {
-            setShowTutorial(false)
-            if (!hasUserClickedJoin) {
-              setGameCodeFromUrl("") // Reset gameCodeFromUrl if tutorial is closed without joining
-            }
-          }}
-          onConfirm={() => {
-            setShowTutorial(false)
-            setShowJoinGame(true)
-          }}
+          onClose={handleTutorialClose}
+          onConfirm={handleTutorialConfirm}
         />
       )}
     </>
