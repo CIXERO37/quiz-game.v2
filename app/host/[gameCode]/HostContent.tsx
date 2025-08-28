@@ -20,6 +20,7 @@ import {
   Award,
   ChevronLeft,
   ChevronRight,
+  Maximize2,
 } from "lucide-react"
 import { useGameStore } from "@/lib/store"
 import { supabase } from "@/lib/supabase"
@@ -81,6 +82,31 @@ const StableProgressBar = React.memo(({
   )
 })
 StableProgressBar.displayName = "StableProgressBar"
+
+// === STABLE SCORE DISPLAY ===
+const StableScoreDisplay = React.memo(({ 
+  score, 
+  playerId 
+}: {
+  score: number;
+  playerId: string;
+}) => {
+  const [displayScore, setDisplayScore] = useState(score)
+  
+  useEffect(() => {
+    // Only update if score actually increased (prevents flickering to 0)
+    if (score > displayScore) {
+      setDisplayScore(score)
+    }
+  }, [score, displayScore])
+  
+  return (
+    <span className="font-bold">
+      {displayScore}
+    </span>
+  )
+})
+StableScoreDisplay.displayName = "StableScoreDisplay"
 
 // === MAGNIFICENT PODIUM LEADERBOARD ===
 const PodiumLeaderboard = React.memo(
@@ -215,7 +241,7 @@ const PodiumLeaderboard = React.memo(
                       {getFirstName(onlyPlayer.name)}
                     </h2>
                     <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-black px-3 sm:px-6 py-2 sm:py-3 rounded-full font-bold text-base sm:text-xl lg:text-2xl shadow-lg">
-                      {onlyPlayer.score} POINTS
+                      <StableScoreDisplay score={onlyPlayer.score} playerId={onlyPlayer.id} /> POINTS
                     </div>
                   </motion.div>
                 </div>
@@ -329,7 +355,7 @@ const PodiumLeaderboard = React.memo(
                         <div className="text-2xl sm:text-3xl mb-1 sm:mb-2">🥇</div>
                         <h3 className="font-bold text-base sm:text-xl lg:text-2xl text-yellow-300 truncate">{getFirstName(first.name)}</h3>
                         <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-black px-3 sm:px-6 py-2 sm:py-3 rounded-full font-bold text-sm sm:text-base lg:text-lg mt-1 sm:mt-2">
-                          {first.score} PTS
+                          <StableScoreDisplay score={first.score} playerId={first.id} /> PTS
                         </div>
                       </div>
                     </div>
@@ -420,7 +446,7 @@ const PodiumLeaderboard = React.memo(
                         <div className="text-base sm:text-xl lg:text-2xl mb-1">🥉</div>
                         <h3 className="font-bold text-xs sm:text-sm lg:text-base text-amber-300 truncate">{getFirstName(third.name)}</h3>
                         <div className="bg-gradient-to-r from-amber-600 to-amber-700 text-white px-2 sm:px-3 py-1 rounded-full font-bold text-xs mt-1">
-                          {third.score}
+                          <StableScoreDisplay score={third.score} playerId={third.id} />
                         </div>
                       </div>
                     </div>
@@ -587,6 +613,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
   const [showLeaderboard, setShowLeaderboard] = useState(false)
   const [quizTimeLeft, setQuizTimeLeft] = useState(0)
   const [isTimerActive, setIsTimerActive] = useState(false)
+  const [quizManuallyEnded, setQuizManuallyEnded] = useState(false)
 
   const [copied, setCopied] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
@@ -597,6 +624,9 @@ export default function HostContent({ gameCode }: HostContentProps) {
 
   const [countdownLeft, setCountdownLeft] = useState<number | null>(null)
   const [showQRModal, setShowQRModal] = useState(false)
+  
+  // Debounced updatePlayerProgress to prevent flickering
+  const debouncedUpdateProgress = useRef<NodeJS.Timeout>()
 
   // Pagination states
   const [currentPlayerPage, setCurrentPlayerPage] = useState(0)
@@ -806,7 +836,8 @@ export default function HostContent({ gameCode }: HostContentProps) {
       const totalQuestions = gameSettings.questionCount || quiz.questionCount || 10
 
       const calculatedScore = playerAnswers.reduce((sum, a) => sum + (a.points_earned || 0), 0)
-      const score = player.score || calculatedScore
+      // Prevent score from flickering to 0 by using the higher value
+      const score = Math.max(player.score || 0, calculatedScore)
 
       progressMap.set(player.id, {
         id: player.id,
@@ -822,45 +853,134 @@ export default function HostContent({ gameCode }: HostContentProps) {
 
     const sorted = Array.from(progressMap.values()).sort((a, b) => b.score - a.score)
     const ranked = sorted.map((p, idx) => ({ ...p, rank: idx + 1 }))
-    setPlayerProgress(ranked)
+    
+    // Prevent unnecessary updates that could cause flickering
+    setPlayerProgress(prev => {
+      // Only update if there are actual changes to prevent flickering
+      if (JSON.stringify(prev) === JSON.stringify(ranked)) {
+        return prev
+      }
+      return ranked
+    })
 
-    const allPlayersCompleted = ranked.every((p) => p.currentQuestion >= p.totalQuestions)
-    if (allPlayersCompleted && ranked.length > 0 && !showLeaderboard) {
-      await supabase.from("games").update({ finished: true, is_started: false }).eq("id", gameId)
-      setShowLeaderboard(true)
-      toast.success("🎉 All players have completed the quiz!")
+          // Only check for completion if quiz is actually started and active
+      if (quizStarted && !showLeaderboard) {
+        // Get only players who have actually joined and participated
+        const activePlayers = ranked.filter((p) => p.currentQuestion > 0)
+        
+        // Check if ALL active players have completed their questions
+        const allActivePlayersCompleted = activePlayers.length > 0 && activePlayers.every((p) => p.currentQuestion >= p.totalQuestions)
+        
+        // Check if there are players still actively answering questions
+        const hasPlayersStillActive = activePlayers.some((p) => p.currentQuestion < p.totalQuestions)
+        
+        console.log(`[HOST] 🎯 Quiz Status Check: quizStarted=${quizStarted}, activePlayers=${activePlayers.length}, allActiveCompleted=${allActivePlayersCompleted}, hasPlayersStillActive=${hasPlayersStillActive}, totalPlayers=${ranked.length}`)
+        
+        // Only finish game if:
+        // 1. Quiz is actually started
+        // 2. There are active players who have answered questions
+        // 3. ALL active players have completed their questions
+        // 4. Game is not already finished
+        // 5. Quiz was not manually ended
+        // 6. Quiz has been running for a reasonable time
+        // 7. Players have answered a reasonable number of questions (not just 1)
+        const minQuestionsRequired = Math.max(3, Math.floor((gameSettings.questionCount || quiz?.questionCount || 10) * 0.3)) // At least 30% of questions or 3 questions minimum
+        
+        if (activePlayers.length > 0 && allActivePlayersCompleted && !hasPlayersStillActive && !quizManuallyEnded) {
+          // Additional check: ensure players have answered enough questions
+          const allPlayersAnsweredEnough = activePlayers.every((p) => p.currentQuestion >= minQuestionsRequired)
+          
+          if (!allPlayersAnsweredEnough) {
+            console.log(`[HOST] ⚠️ Players haven't answered enough questions. Required: ${minQuestionsRequired}, Current: ${activePlayers.map(p => `${p.name}:${p.currentQuestion}`).join(', ')}`)
+            return
+          }
+        // Additional safety check: ensure quiz has been running for at least 30 seconds
+        const quizStartTime = await supabase
+          .from("games")
+          .select("quiz_start_time")
+          .eq("id", gameId)
+          .single()
+        
+        if (quizStartTime.data?.quiz_start_time) {
+          const startTime = new Date(quizStartTime.data.quiz_start_time).getTime()
+          const currentTime = Date.now()
+          const quizDuration = currentTime - startTime
+          
+          // Only auto-finish if quiz has been running for at least 30 seconds
+          if (quizDuration > 30000) { // 30 seconds
+            console.log("[HOST] 🎉 All players completed quiz - finishing game")
+            await supabase.from("games").update({ finished: true, is_started: false }).eq("id", gameId)
+            setShowLeaderboard(true)
+            toast.success("🎉 All players have completed the quiz!")
+          } else {
+            console.log(`[HOST] ⏱️ Quiz too short (${Math.round(quizDuration/1000)}s) - waiting for minimum duration`)
+          }
+        } else {
+          console.log("[HOST] ⚠️ No quiz start time found - skipping auto-finish")
+        }
+      } else if (quizManuallyEnded) {
+        console.log("[HOST] 🚫 Quiz manually ended - skipping auto-finish")
+      } else if (activePlayers.length === 0) {
+        console.log("[HOST] ⏳ No active players yet - waiting for players to join and answer")
+      } else if (hasPlayersStillActive) {
+        console.log("[HOST] ⏳ Some players still answering questions - continuing quiz")
+      } else if (!allActivePlayersCompleted) {
+        console.log("[HOST] ⏳ Not all active players completed - continuing quiz")
+      }
     }
-  }, [gameId, quiz, showLeaderboard, gameSettings.questionCount])
+  }, [gameId, quiz, showLeaderboard, gameSettings.questionCount, quizStarted])
 
   const fetchPlayers = useCallback(async () => {
     if (!gameId) return
 
     console.log("[v0] Fetching players for game:", gameId)
-    const { data: playersData, error } = await supabase.from("players").select("*").eq("game_id", gameId)
-    if (error) {
-      console.error("Error fetching players:", error)
+    const [playersResult, answersResult] = await Promise.all([
+      supabase.from("players").select("*").eq("game_id", gameId),
+      supabase.from("player_answers").select("*").eq("game_id", gameId).not("question_index", "eq", -1)
+    ])
+    
+    if (playersResult.error) {
+      console.error("Error fetching players:", playersResult.error)
       return
     }
 
+    const playersData = playersResult.data || []
+    const answers = answersResult.data || []
+    
     console.log("[v0] Fetched players:", playersData)
     setPlayers(playersData || [])
     if (playersData) {
       const progressMap = new Map<string, PlayerProgress>()
       playersData.forEach((player: Player) => {
+        // Calculate actual progress from answers
+        const playerAnswers = answers.filter((a) => a.player_id === player.id && a.question_index >= 0)
+        const uniqueQuestionIndices = new Set(playerAnswers.map((a) => a.question_index))
+        const answeredQuestions = uniqueQuestionIndices.size
+        
+        console.log(`[HOST] 📊 Player ${player.name}: score=${player.score}, answers=${playerAnswers.length}, uniqueQuestions=${uniqueQuestionIndices.size}, currentQuestion=${answeredQuestions}`)
+        
         progressMap.set(player.id, {
           id: player.id,
           name: player.name,
           avatar: player.avatar || "/placeholder.svg?height=40&width=40&text=Player",
           score: player.score || 0,
-          currentQuestion: 0,
+          currentQuestion: answeredQuestions,
           totalQuestions: gameSettings.questionCount || quiz?.questionCount || 10,
-          isActive: true,
+          isActive: answeredQuestions < (gameSettings.questionCount || quiz?.questionCount || 10),
           rank: 0,
         })
       })
       const sorted = Array.from(progressMap.values()).sort((a, b) => b.score - a.score)
       const ranked = sorted.map((p, idx) => ({ ...p, rank: idx + 1 }))
-      setPlayerProgress(ranked)
+      
+      // Prevent unnecessary updates that could cause flickering
+      setPlayerProgress(prev => {
+        // Only update if there are actual changes to prevent flickering
+        if (JSON.stringify(prev) === JSON.stringify(ranked)) {
+          return prev
+        }
+        return ranked
+      })
     }
   }, [gameId, gameSettings.questionCount, quiz?.questionCount])
 
@@ -1053,22 +1173,23 @@ export default function HostContent({ gameCode }: HostContentProps) {
           // Immediate state update
           setPlayers(prev => prev.map(p => p.id === updatedPlayer.id ? updatedPlayer : p))
           
-          // Update progress
+          // Update progress with flicker prevention
           setPlayerProgress(prev => {
             const updated = prev.map(p => p.id === updatedPlayer.id ? {
               ...p,
               name: updatedPlayer.name,
               avatar: updatedPlayer.avatar || p.avatar,
-              score: updatedPlayer.score || 0,
+              // Prevent score from flickering to 0 by using the higher value
+              score: Math.max(p.score, updatedPlayer.score || 0),
             } : p)
             const sorted = updated.sort((a, b) => b.score - a.score)
             return sorted.map((p, idx) => ({ ...p, rank: idx + 1 }))
           })
           
           // Backup refresh
-          setTimeout(() => {
-            fetchPlayers()
-            updatePlayerProgress()
+          setTimeout(async () => {
+            await fetchPlayers()
+            await updatePlayerProgress()
           }, 500)
         },
       )
@@ -1079,18 +1200,28 @@ export default function HostContent({ gameCode }: HostContentProps) {
         }
       })
 
+    // Debounced updatePlayerProgress to prevent flickering
+    const debouncedUpdatePlayerProgress = () => {
+      if (debouncedUpdateProgress.current) {
+        clearTimeout(debouncedUpdateProgress.current)
+      }
+      debouncedUpdateProgress.current = setTimeout(() => {
+        updatePlayerProgress()
+      }, 300) // 300ms debounce to prevent rapid updates
+    }
+
     const answersSubscription = supabase
       .channel("player_answers")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "player_answers", filter: `game_id=eq.${gameId}` },
-        () => updatePlayerProgress(),
+        () => debouncedUpdatePlayerProgress(),
       )
       .subscribe()
 
-    setTimeout(() => {
-      fetchPlayers()
-      updatePlayerProgress()
+    setTimeout(async () => {
+      await fetchPlayers()
+      await updatePlayerProgress()
     }, 50)
 
     // Add periodic health check as fallback
@@ -1130,9 +1261,9 @@ export default function HostContent({ gameCode }: HostContentProps) {
           }
           
           // Force refresh
-          setTimeout(() => {
-            fetchPlayers()
-            updatePlayerProgress()
+          setTimeout(async () => {
+            await fetchPlayers()
+            await updatePlayerProgress()
           }, 100)
         }
       } catch (error) {
@@ -1145,6 +1276,11 @@ export default function HostContent({ gameCode }: HostContentProps) {
       supabase.removeChannel(playersSubscription)
       supabase.removeChannel(answersSubscription)
       clearInterval(healthCheckInterval)
+      
+      // Cleanup debounced update
+      if (debouncedUpdateProgress.current) {
+        clearTimeout(debouncedUpdateProgress.current)
+      }
     }
   }, [gameId, fetchPlayers, updatePlayerProgress])
 
@@ -1255,6 +1391,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
       toast.success("🏁 Quiz ended!")
       setQuizStarted(false)
       setShowLeaderboard(true)
+      setQuizManuallyEnded(true) // Mark quiz as manually ended
     } catch {
       toast.error("❌ Failed to end quiz")
     }
@@ -1413,48 +1550,271 @@ export default function HostContent({ gameCode }: HostContentProps) {
           </svg>
         </div>
 
-        {Array.from({ length: 300 }).map((_, i) => (
-          <div
-            key={`distant-star-${i}`}
-            className="absolute bg-white rounded-full"
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              width: `${Math.random() * 1.5 + 0.3}px`,
-              height: `${Math.random() * 1.5 + 0.3}px`,
-              opacity: Math.random() * 0.4 + 0.1,
-              animation: `twinkle ${Math.random() * 4 + 2}s infinite alternate`,
-            }}
-          />
-        ))}
+        {Array.from({ length: 300 }).map((_, i) => {
+          // Use deterministic values for static positioning
+          const seed = i * 12345;
+          const left = ((seed * 7) % 100) + (seed % 20);
+          const top = ((seed * 11) % 100) + (seed % 15);
+          const size = (seed % 12) / 10 + 0.3;
+          const colorIndex = seed % 6;
+          const opacity = (seed % 40) / 100 + 0.1;
+          
+          return (
+            <div
+              key={`distant-star-${i}`}
+              className="absolute rounded-full"
+              style={{
+                left: `${left}%`,
+                top: `${top}%`,
+                width: `${size}px`,
+                height: `${size}px`,
+                background: `${['#ffffff', '#fbbf24', '#8b5cf6', '#ec4899', '#06b6d4', '#10b981'][colorIndex]}`,
+                opacity: opacity,
+              }}
+            />
+          )
+        })}
 
-        {Array.from({ length: 50 }).map((_, i) => (
-          <div
-            key={`bright-star-${i}`}
-            className="absolute bg-white rounded-full"
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              width: `${Math.random() * 2 + 1}px`,
-              height: `${Math.random() * 2 + 1}px`,
-              opacity: Math.random() * 0.6 + 0.4,
-              boxShadow: "0 0 8px rgba(255, 255, 255, 0.6), 0 0 16px rgba(255, 255, 255, 0.3)",
-              animation: `twinkle ${Math.random() * 3 + 1.5}s infinite alternate`,
-            }}
-          />
-        ))}
+        {Array.from({ length: 50 }).map((_, i) => {
+          // Use deterministic values for static positioning
+          const seed = i * 67890;
+          const left = ((seed * 13) % 100) + (seed % 25);
+          const top = ((seed * 17) % 100) + (seed % 20);
+          const size = (seed % 12) / 10 + 1;
+          const colorIndex = seed % 8;
+          const starColor = ['#ffffff', '#fbbf24', '#8b5cf6', '#ec4899', '#06b6d4', '#10b981', '#f59e0b', '#ef4444'][colorIndex];
+          const opacity = (seed % 40) / 100 + 0.4;
+          
+          return (
+            <div
+              key={`bright-star-${i}`}
+              className="absolute rounded-full"
+              style={{
+                left: `${left}%`,
+                top: `${top}%`,
+                width: `${size}px`,
+                height: `${size}px`,
+                background: starColor,
+                opacity: opacity,
+                boxShadow: `0 0 8px ${starColor}80, 0 0 16px ${starColor}40, 0 0 24px ${starColor}20`,
+              }}
+            />
+          )
+        })}
 
+        {Array.from({ length: 5 }).map((_, i) => {
+          // Use deterministic values for static positioning
+          const seed = i * 11111;
+          const left = ((seed * 19) % 100) + (seed % 30);
+          const top = ((seed * 23) % 100) + (seed % 25);
+          const width = (seed % 120) + 80;
+          const colorIndex = seed % 5;
+          const trailColor = ['#ffffff', '#fbbf24', '#8b5cf6', '#ec4899', '#06b6d4'][colorIndex];
+          const rotation = seed % 360;
+          
+          return (
+            <div
+              key={`shooting-star-${i}`}
+              className="absolute h-px opacity-70"
+              style={{
+                left: `${left}%`,
+                top: `${top}%`,
+                width: `${width}px`,
+                background: `linear-gradient(to right, ${trailColor}, transparent)`,
+                transform: `rotate(${rotation}deg)`,
+                filter: `blur(0.5px)`,
+              }}
+            />
+          )
+        })}
+
+        {/* Floating cosmic particles */}
+        {Array.from({ length: 20 }).map((_, i) => {
+          // Use deterministic values for static positioning
+          const seed = i * 22222;
+          const left = ((seed * 29) % 100) + (seed % 35);
+          const top = ((seed * 31) % 100) + (seed % 30);
+          const size = (seed % 30) / 10 + 1;
+          const colorIndex = seed % 4;
+          const opacity = (seed % 40) / 100 + 0.2;
+          
+          return (
+            <div
+              key={`cosmic-particle-${i}`}
+              className="absolute rounded-full"
+              style={{
+                left: `${left}%`,
+                top: `${top}%`,
+                width: `${size}px`,
+                height: `${size}px`,
+                background: `radial-gradient(circle, ${['#fbbf24', '#8b5cf6', '#ec4899', '#06b6d4'][colorIndex]} 0%, transparent 70%)`,
+                opacity: opacity,
+              }}
+            />
+          )
+        })}
+
+        {/* Nebula clouds with drift animation */}
+        {Array.from({ length: 5 }).map((_, i) => {
+          // Use deterministic values for static positioning
+          const seed = i * 33333;
+          const left = ((seed * 37) % 100) + (seed % 40);
+          const top = ((seed * 41) % 100) + (seed % 35);
+          const width = (seed % 200) + 100;
+          const height = (seed % 150) + 80;
+          const colorIndex = seed % 4;
+          
+          return (
+            <div
+              key={`nebula-cloud-${i}`}
+              className="absolute rounded-full blur-sm"
+              style={{
+                left: `${left}%`,
+                top: `${top}%`,
+                width: `${width}px`,
+                height: `${height}px`,
+                background: `radial-gradient(ellipse, ${['rgba(139, 92, 246, 0.1)', 'rgba(236, 72, 153, 0.1)', 'rgba(6, 182, 212, 0.1)', 'rgba(251, 191, 36, 0.1)'][colorIndex]} 0%, transparent 70%)`,
+              }}
+            />
+          )
+        })}
+
+        {/* Rotating cosmic rings */}
         {Array.from({ length: 3 }).map((_, i) => (
           <div
-            key={`shooting-star-${i}`}
-            className="absolute bg-gradient-to-r from-white to-transparent h-px opacity-70"
+            key={`cosmic-ring-${i}`}
+            className="absolute border border-white/10 rounded-full"
             style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              width: `${Math.random() * 100 + 50}px`,
-              transform: `rotate(${Math.random() * 360}deg)`,
-              animation: `shooting-star ${Math.random() * 8 + 4}s infinite linear`,
-              animationDelay: `${Math.random() * 5}s`,
+              left: '50%',
+              top: '50%',
+              width: `${(i + 1) * 200}px`,
+              height: `${(i + 1) * 200}px`,
+              transform: 'translate(-50%, -50%)',
+            }}
+          />
+        ))}
+
+        {/* Additional galaxy elements */}
+        {/* Colorful nebula swirls */}
+        {Array.from({ length: 8 }).map((_, i) => {
+          // Use deterministic values for static positioning
+          const seed = i * 44444;
+          const left = ((seed * 43) % 100) + (seed % 45);
+          const top = ((seed * 47) % 100) + (seed % 40);
+          const width = (seed % 300) + 150;
+          const height = (seed % 250) + 120;
+          const rotation = seed % 360;
+          const colorIndex1 = seed % 5;
+          const colorIndex2 = seed % 4;
+          const opacity = (seed % 40) / 100 + 0.1;
+          
+          return (
+            <div
+              key={`nebula-swirl-${i}`}
+              className="absolute rounded-full blur-md"
+              style={{
+                left: `${left}%`,
+                top: `${top}%`,
+                width: `${width}px`,
+                height: `${height}px`,
+                background: `conic-gradient(from ${rotation}deg, ${['rgba(139, 92, 246, 0.08)', 'rgba(236, 72, 153, 0.08)', 'rgba(6, 182, 212, 0.08)', 'rgba(251, 191, 36, 0.08)', 'rgba(239, 68, 68, 0.08)'][colorIndex1]} 0deg, transparent 180deg, ${['rgba(16, 185, 129, 0.08)', 'rgba(245, 158, 11, 0.08)', 'rgba(139, 92, 246, 0.08)', 'rgba(236, 72, 153, 0.08)'][colorIndex2]} 360deg)`,
+                opacity: opacity,
+              }}
+            />
+          )
+        })}
+
+        {/* Pulsing cosmic orbs */}
+        {Array.from({ length: 6 }).map((_, i) => {
+          // Use deterministic values for static positioning
+          const seed = i * 55555;
+          const left = ((seed * 53) % 100) + (seed % 50);
+          const top = ((seed * 59) % 100) + (seed % 45);
+          const size = (seed % 80) + 40;
+          const colorIndex = seed % 6;
+          const opacity = (seed % 30) / 100 + 0.1;
+          
+          return (
+            <div
+              key={`cosmic-orb-${i}`}
+              className="absolute rounded-full blur-sm"
+              style={{
+                left: `${left}%`,
+                top: `${top}%`,
+                width: `${size}px`,
+                height: `${size}px`,
+                background: `radial-gradient(circle, ${['#fbbf24', '#8b5cf6', '#ec4899', '#06b6d4', '#10b981', '#f59e0b'][colorIndex]} 0%, transparent 70%)`,
+                opacity: opacity,
+              }}
+            />
+          )
+        })}
+
+        {/* Floating space debris */}
+        {Array.from({ length: 15 }).map((_, i) => {
+          // Use deterministic values for static positioning
+          const seed = i * 66666;
+          const left = ((seed * 61) % 100) + (seed % 55);
+          const top = (seed * 67) % 100 + (seed % 50);
+          const size = (seed % 40) / 10 + 2;
+          const colorIndex = seed % 3;
+          const opacity = (seed % 50) / 100 + 0.2;
+          const rotation = seed % 360;
+          
+          return (
+            <div
+              key={`space-debris-${i}`}
+              className="absolute"
+              style={{
+                left: `${left}%`,
+                top: `${top}%`,
+                width: `${size}px`,
+                height: `${size}px`,
+                background: `linear-gradient(45deg, ${['#94a3b8', '#64748b', '#475569'][colorIndex]} 0%, transparent 50%, ${['#64748b', '#475569', '#334155'][colorIndex]} 100%)`,
+                opacity: opacity,
+                transform: `rotate(${rotation}deg)`,
+              }}
+            />
+          )
+        })}
+
+        {/* Cosmic dust particles */}
+        {Array.from({ length: 100 }).map((_, i) => {
+          // Use deterministic values for static positioning
+          const seed = i * 77777;
+          const left = ((seed * 71) % 100) + (seed % 60);
+          const top = (seed * 73) % 100 + (seed % 55);
+          const size = (seed % 8) / 10 + 0.2;
+          const colorIndex = seed % 5;
+          const opacity = (seed % 30) / 100 + 0.1;
+          
+          return (
+            <div
+              key={`cosmic-dust-${i}`}
+              className="absolute rounded-full"
+              style={{
+                left: `${left}%`,
+                top: `${top}%`,
+                width: `${size}px`,
+                height: `${size}px`,
+                background: `${['#ffffff', '#fbbf24', '#8b5cf6', '#ec4899', '#06b6d4'][colorIndex]}`,
+                opacity: opacity,
+              }}
+            />
+          )
+        })}
+
+        {/* Energy waves */}
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div
+            key={`energy-wave-${i}`}
+            className="absolute rounded-full border border-white/5"
+            style={{
+              left: '50%',
+              top: '50%',
+              width: `${(i + 1) * 300}px`,
+              height: `${(i + 1) * 300}px`,
+              transform: 'translate(-50%, -50%)',
             }}
           />
         ))}
@@ -1501,14 +1861,19 @@ export default function HostContent({ gameCode }: HostContentProps) {
                   </div>
 
                   <div className="relative inline-block mb-4 w-full max-w-sm sm:max-w-md">
-                    <div className="bg-white text-black rounded-lg py-4 sm:py-6 lg:py-8 px-4 sm:px-8 lg:px-12 w-full flex flex-col justify-center items-center">
+                    <div className="bg-white text-black rounded-lg py-4 sm:py-6 lg:py-8 px-4 sm:px-8 lg:px-12 w-full flex flex-col justify-center items-center relative">
+                      {/* Maximize button in top-right corner */}
                       <button
                         onClick={() => setShowQRModal(true)}
-                        className="hover:opacity-80 transition-opacity cursor-pointer mb-4"
+                        className="absolute top-2 right-2 p-2 hover:bg-gray-100 rounded transition-colors z-10"
                         title="Click to enlarge QR code"
                       >
-                        <QRCodeSVG value={joinUrl} size={120} className="sm:w-[140px] sm:h-[140px] lg:w-[335px] lg:h-[335px]" />
+                        <Maximize2 className="w-5 h-5 text-gray-600" />
                       </button>
+                      
+                      <div className="mb-4 py-1">
+                        <QRCodeSVG value={joinUrl} size={120} className="sm:w-[140px] sm:h-[140px] lg:w-[335px] lg:h-[335px]" />
+                      </div>
                       <div className="w-full">
                       
                         <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-2 sm:p-3">
@@ -1652,58 +2017,123 @@ export default function HostContent({ gameCode }: HostContentProps) {
                 </div>
               ) : (
                 <>
-                  <div className="space-y-3">
+                                    <div className="space-y-3">
                     {getPaginatedProgress(playerProgress, currentProgressPage).map((player, index) => (
                       <motion.div
                         key={player.id}
                         layout
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.4, delay: index * 0.05 }}
-                        className={`flex flex-col p-2 sm:p-3 rounded-lg border-2 transition-all duration-300 ${
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: index * 0.05 }}
+                        whileHover={{ scale: 1.01 }}
+                        className={`relative overflow-hidden rounded-lg p-4 border transition-all duration-200 ${
                           player.rank === 1
-                            ? "border-yellow-400 bg-yellow-400/10"
+                            ? "border-yellow-400/50"
                             : player.rank === 2
-                              ? "border-gray-300 bg-gray-300/10"
+                              ? "border-gray-300/50"
                               : player.rank === 3
-                                ? "border-amber-600 bg-amber-600/10"
-                                : "border-white/20 bg-white/5"
+                                ? "border-amber-600/50"
+                              : "border-white/20"
                         }`}
                       >
-                        <div className="flex items-center gap-2 sm:gap-4">
-                          <div className="text-lg sm:text-xl font-bold text-white w-6 sm:w-8 text-center">{player.rank}</div>
+                        {/* Galaxy background with stars */}
+                        <div className="absolute inset-0 bg-gradient-to-br from-purple-900/30 via-blue-900/20 to-indigo-900/25 rounded-lg" />
+                        
+                        {/* Animated stars background */}
+                        <div className="absolute inset-0 overflow-hidden rounded-lg">
+                          <div className="absolute top-2 left-3 w-1 h-1 bg-white/60 rounded-full animate-pulse" />
+                          <div className="absolute top-6 right-4 w-0.5 h-0.5 bg-blue-300/70 rounded-full animate-pulse" style={{ animationDelay: '0.5s' }} />
+                          <div className="absolute bottom-3 left-6 w-0.5 h-0.5 bg-purple-300/60 rounded-full animate-pulse" style={{ animationDelay: '1s' }} />
+                          <div className="absolute bottom-6 right-2 w-1 h-1 bg-cyan-300/50 rounded-full animate-pulse" style={{ animationDelay: '1.5s' }} />
+                          <div className="absolute top-1/2 left-2 w-0.5 h-0.5 bg-white/40 rounded-full animate-pulse" style={{ animationDelay: '2s' }} />
+                        </div>
+                        
+                        {/* Nebula effect */}
+                        <div className={`absolute inset-0 rounded-lg opacity-20 ${
+                          player.rank === 1
+                            ? "bg-gradient-to-br from-yellow-400/20 via-orange-500/15 to-red-500/10"
+                            : player.rank === 2
+                              ? "bg-gradient-to-br from-gray-300/20 via-blue-400/15 to-purple-500/10"
+                              : player.rank === 3
+                                ? "bg-gradient-to-br from-amber-600/20 via-orange-500/15 to-red-600/10"
+                              : "bg-gradient-to-br from-blue-400/15 via-purple-500/10 to-indigo-600/10"
+                        }`} />
+                        
+                                                {/* Content wrapper with backdrop blur */}
+                        <div className="relative z-10 bg-black/20 backdrop-blur-sm rounded-lg p-3 -m-3">
+                          <div className="flex items-center gap-4">
+                          {/* Rank number */}
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-lg font-bold ${
+                            player.rank === 1
+                              ? "bg-yellow-400 text-black"
+                              : player.rank === 2
+                                ? "bg-gray-300 text-black"
+                                : player.rank === 3
+                                  ? "bg-amber-600 text-white"
+                                  : "bg-white/20 text-white"
+                          }`}>
+                            {player.rank}
+                          </div>
 
+                          {/* Avatar */}
                           <Image
                             src={player.avatar || "/placeholder.svg"}
                             alt={getFirstName(player.name)}
                             width={40}
                             height={40}
-                            className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover"
+                            className="w-10 h-10 rounded-full object-cover border-2 border-white/30"
                           />
 
+                          {/* Player info */}
                           <div className="flex-1 min-w-0">
-                            <p className="font-bold text-white text-sm sm:text-base truncate">{getFirstName(player.name)}</p>
-                            <p className="text-yellow-300 text-xs sm:text-sm">{player.score} pts</p>
+                            <h3 className="font-bold text-white text-base truncate mb-1">
+                              {getFirstName(player.name)}
+                            </h3>
+                            <p className={`text-sm font-medium ${
+                              player.rank === 1
+                                ? "text-yellow-300"
+                                : player.rank === 2
+                                  ? "text-gray-200"
+                                  : player.rank === 3
+                                    ? "text-amber-400"
+                                    : "text-yellow-300"
+                            }`}>
+                              {player.score} points
+                            </p>
                           </div>
 
-                          <div className="flex items-center gap-2">{getRankIcon(player.rank)}</div>
+                          {/* Rank icon */}
+                          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-white/10">
+                            {getRankIcon(player.rank)}
+                          </div>
                         </div>
 
-                        <div className="flex items-center gap-1 sm:gap-2 mt-2 sm:mt-3">
-                          <span className="text-xs text-white/70 min-w-fit">
+                        {/* Progress section */}
+                        <div className="mt-4 flex items-center gap-3">
+                          <span className="text-sm text-white/70 min-w-fit">
                             {player.currentQuestion}/{player.totalQuestions}
                           </span>
-                          <StableProgressBar
-                            playerId={player.id}
-                            currentQuestion={player.currentQuestion}
-                            totalQuestions={player.totalQuestions}
-                          />
-                          <span className="text-xs text-green-400 font-mono min-w-[30px] sm:min-w-[35px]">
+                          <div className="flex-1">
+                            <StableProgressBar
+                              playerId={player.id}
+                              currentQuestion={player.currentQuestion}
+                              totalQuestions={player.totalQuestions}
+                            />
+                          </div>
+                          <span className={`text-sm font-bold font-mono min-w-[35px] ${
+                            player.totalQuestions > 0
+                              ? Math.round((player.currentQuestion / player.totalQuestions) * 100) >= 80
+                                ? "text-green-400"
+                                : Math.round((player.currentQuestion / player.totalQuestions) * 100) >= 50
+                                  ? "text-yellow-400"
+                                  : "text-orange-400"
+                              : "text-orange-400"
+                          }`}>
                             {player.totalQuestions > 0
                               ? Math.round((player.currentQuestion / player.totalQuestions) * 100)
-                              : 0}
-                            %
+                              : 0}%
                           </span>
+                        </div>
                         </div>
                       </motion.div>
                     ))}
