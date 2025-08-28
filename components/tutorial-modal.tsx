@@ -44,8 +44,8 @@ export function TutorialModal({ open, onClose, onConfirm }: TutorialModalProps) 
             <p><strong>1.</strong> {t('enterName', 'Enter your name and choose an avatar.')}</p>
             <p><strong>2.</strong> {t('gameCodeQR', 'Enter the 6-digit game code or scan the QR code.')}</p>
             <p><strong>3.</strong> {t('waitForHost', 'Wait for the host to start the quiz.')}</p>
-            {/* <p><strong>4.</strong> Answer questions quickly and accurately to win!</p>
-            <p><strong>5.</strong> Your score is based on speed and correctness.</p> */}
+            <p><strong>4.</strong> Answer questions quickly and accurately to win!</p>
+            <p><strong>5.</strong> Your score is based on speed and correctness.</p>
           </div>
         )}
 

@@ -2,6 +2,7 @@
 
 import { useLanguage } from '@/contexts/language-context'
 import { Globe, ChevronDown } from 'lucide-react'
+import { useState } from 'react'
 import {
   Select,
   SelectContent,
@@ -12,6 +13,7 @@ import {
 
 export function LanguageSelector() {
   const { t, changeLanguage, currentLanguage, isClient } = useLanguage()
+  const [isOpen, setIsOpen] = useState(false)
 
   const languages = [
     { code: 'en', name: t('english', 'English'), flag: '🇺🇸', nativeName: 'English' },
@@ -25,6 +27,10 @@ export function LanguageSelector() {
     changeLanguage(languageCode)
   }
 
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open)
+  }
+
   // Don't render until client-side
   if (!isClient) {
     return null
@@ -32,15 +38,19 @@ export function LanguageSelector() {
 
   return (
     <div className="fixed top-4 right-4 z-50">
-      <Select value={currentLanguage} onValueChange={handleLanguageChange}>
-        <SelectTrigger className="w-[160px] h-10 bg-white/10 backdrop-blur-md border-white/20 text-white hover:bg-white/20 transition-all duration-300 shadow-lg">
+      <Select value={currentLanguage} onValueChange={handleLanguageChange} onOpenChange={handleOpenChange}>
+        <SelectTrigger className="w-[160px] h-10 bg-white/10 backdrop-blur-md border-white/20 text-white hover:bg-white/20 transition-all duration-300 shadow-lg [&>svg]:hidden">
           <div className="flex items-center space-x-2">
             <Globe className="w-4 h-4 text-cyan-300" />
             <div className="flex items-center space-x-2">
               <span className="text-lg">{currentLanguageData.flag}</span>
               <span className="text-sm font-medium">{currentLanguageData.nativeName}</span>
             </div>
-            <ChevronDown className="w-4 h-4 text-cyan-300" />
+            <ChevronDown 
+              className={`w-4 h-4 text-cyan-300 transition-transform duration-300 ${
+                isOpen ? 'rotate-180' : ''
+              }`} 
+            />
           </div>
         </SelectTrigger>
         <SelectContent className="bg-white/95 backdrop-blur-md border-white/20 shadow-xl">
