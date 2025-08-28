@@ -73,6 +73,10 @@ export default function HomePage() {
     if (gameCodeFromUrl) {
       console.log("🎯 Opening join game dialog after tutorial close")
       setShowJoinGame(true)
+    } else if (hasUserClickedJoin) {
+      // Jika user klik tombol JOIN (bukan dari URL), buka dialog join
+      console.log("🎯 Opening join game dialog after tutorial close (user clicked join)")
+      setShowJoinGame(true)
     }
   }
 
@@ -84,6 +88,10 @@ export default function HomePage() {
     if (gameCodeFromUrl) {
       console.log("🎯 Opening join game dialog after tutorial confirm")
       setShowJoinGame(true)
+    } else if (hasUserClickedJoin) {
+      // Jika user klik tombol JOIN (bukan dari URL), buka dialog join
+      console.log("🎯 Opening join game dialog after tutorial confirm (user clicked join)")
+      setShowJoinGame(true)
     }
   }
 
@@ -94,6 +102,7 @@ export default function HomePage() {
       // Reset showTutorial when closing JoinGameDialog
       setShowTutorial(false)
       setGameCodeFromUrl("") // Reset gameCodeFromUrl to prevent re-trigger
+      setHasUserClickedJoin(false) // Reset hasUserClickedJoin when closing dialog
     }
   }
 
@@ -105,6 +114,16 @@ export default function HomePage() {
       setGameCodeFromUrl("")
     }
   }, [showJoinGame, gameCodeFromUrl, showTutorial])
+
+  // Debug effect untuk memantau state changes
+  useEffect(() => {
+    console.log("🎯 State changed:", {
+      showJoinGame,
+      showTutorial,
+      gameCodeFromUrl,
+      hasUserClickedJoin
+    })
+  }, [showJoinGame, showTutorial, gameCodeFromUrl, hasUserClickedJoin])
 
   return (
     <>
@@ -289,6 +308,7 @@ export default function HomePage() {
           <motion.div whileHover={{ scale: 1.05, y: -10 }} whileTap={{ scale: 0.95 }} className="group">
             <Button
               onClick={() => {
+                console.log("🎯 JOIN button clicked")
                 setHasUserClickedJoin(true)
                 setShowTutorial(true)
               }}

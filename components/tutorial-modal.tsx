@@ -25,12 +25,19 @@ export function TutorialModal({ open, onClose, onConfirm }: TutorialModalProps) 
   const prevStep = () => setStep((prev) => prev - 1)
 
   const handleFinish = () => {
+    console.log("🎯 Tutorial finished - calling onConfirm")
     setStep(1)
     onConfirm()
   }
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={(open) => {
+      console.log("🎯 Tutorial dialog onOpenChange:", open)
+      if (!open) {
+        // Jika tutorial ditutup, panggil onClose
+        onClose()
+      }
+    }}>
       <DialogContent className="max-w-lg bg-white/95 backdrop-blur-lg border border-white/20">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold text-center bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
