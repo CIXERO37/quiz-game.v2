@@ -13,7 +13,7 @@ interface QRCodeModalProps {
 export function QRCodeModal({ open, onOpenChange, joinUrl }: QRCodeModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md sm:max-w-lg lg:max-w-2xl xl:max-w-3xl w-[95vw] max-h-[100vh] overflow-y-auto bg-white/95 backdrop-blur-lg border border-white/20 shadow-2xl p-4 sm:p-6 lg:p-8">
+      <DialogContent className="max-w-md sm:max-w-lg lg:max-w-2xl xl:max-w-2xl w-[95vw] max-h-[100vh] overflow-y-auto bg-white/95 backdrop-blur-lg border border-white/20 shadow-2xl p-4 sm:p-6 lg:p-8">
         <button
           onClick={() => onOpenChange(false)}
           className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none z-10"
