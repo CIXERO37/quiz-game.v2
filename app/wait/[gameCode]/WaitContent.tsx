@@ -9,7 +9,8 @@ import { supabase } from "@/lib/supabase"
 import { cleanupPresence } from "@/lib/presence"
 import { syncServerTime } from "@/lib/server-time"
 import { toast } from "sonner"
-import { getFirstName } from "@/lib/utils"
+import { getFirstName, formatDisplayName } from "@/lib/utils"
+import React from "react"
 
 interface WaitContentProps {
   gameCode: string
@@ -25,6 +26,36 @@ function Background() {
     </div>
   )
 }
+
+// === SMART NAME DISPLAY ===
+const SmartNameDisplay = React.memo(({ 
+  name, 
+  maxLength = 8,
+  className = "",
+  multilineClassName = ""
+}: {
+  name: string;
+  maxLength?: number;
+  className?: string;
+  multilineClassName?: string;
+}) => {
+  const { displayName, isBroken } = formatDisplayName(name, maxLength)
+  
+  if (isBroken) {
+    return (
+      <span className={`${className} ${multilineClassName} whitespace-pre-line leading-tight text-center block`}>
+        {displayName}
+      </span>
+    )
+  }
+  
+  return (
+    <span className={className}>
+      {displayName}
+    </span>
+  )
+})
+SmartNameDisplay.displayName = "SmartNameDisplay"
 
 // Tambahkan ini untuk disable SSR pada halaman ini
 export const dynamic = "force-dynamic"
@@ -350,7 +381,14 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
             animate={{ scale: 1 }}
             transition={{ delay: 0.2, type: "spring" }}
           />
-          <p className="text-lg mb-2 drop-shadow-[1px_1px_0px_#000]">{getFirstName(playerName)}</p>
+          <p className="text-lg mb-2 drop-shadow-[1px_1px_0px_#000]">
+            <SmartNameDisplay 
+              name={playerName} 
+              maxLength={10}
+              className="text-lg text-white"
+              multilineClassName="text-base leading-tight"
+            />
+          </p>
           <p className="text-sm text-white/70 mb-6">
             Waiting to start
             <motion.span

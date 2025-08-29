@@ -355,27 +355,13 @@ export default function SpaceDodge({ onComplete }: Props) {
     setShipX(Math.max(8, Math.min(92, percent)))
   }, [])
 
-  // Save score yang sudah diperbaiki
+  // Handle game completion - let parent handle database operations
   useEffect(() => {
-    if (gameOver && gameId && playerId) {
-      supabase
-        .from("player_answers")
-        .insert({
-          player_id: playerId,
-          game_id: gameId,
-          question_index: -1,
-          is_correct: true,
-          points_earned: Math.floor(score),
-        })
-        .then(({ error }) => {
-          if (error) {
-            console.error("Supabase insert error:", error)
-          }
-        })
-
+    if (gameOver) {
+      // Only call onComplete, let PlayContent handle database operations
       onComplete(Math.floor(score))
     }
-  }, [gameOver, gameId, playerId, score, onComplete])
+  }, [gameOver, score, onComplete])
 
   return (
     <div
