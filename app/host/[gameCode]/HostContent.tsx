@@ -31,7 +31,7 @@ import type { Quiz, Player } from "@/lib/types"
 import { RulesDialog } from "@/components/rules-dialog"
 import { QRCodeModal } from "@/components/qr-code-modal"
 import { syncServerTime } from "@/lib/server-time"
-import { getFirstName } from "@/lib/utils"
+import { getFirstName, formatDisplayName } from "@/lib/utils"
 
 // === TYPES ===
 interface PlayerProgress {
@@ -82,6 +82,36 @@ const StableProgressBar = React.memo(({
   )
 })
 StableProgressBar.displayName = "StableProgressBar"
+
+// === SMART NAME DISPLAY ===
+const SmartNameDisplay = React.memo(({ 
+  name, 
+  maxLength = 12,
+  className = "",
+  multilineClassName = ""
+}: {
+  name: string;
+  maxLength?: number;
+  className?: string;
+  multilineClassName?: string;
+}) => {
+  const { displayName, isBroken } = formatDisplayName(name, maxLength)
+  
+  if (isBroken) {
+    return (
+      <span className={`${className} ${multilineClassName} whitespace-pre-line leading-tight`}>
+        {displayName}
+      </span>
+    )
+  }
+  
+  return (
+    <span className={className}>
+      {displayName}
+    </span>
+  )
+})
+SmartNameDisplay.displayName = "SmartNameDisplay"
 
 // === STABLE SCORE DISPLAY ===
 const StableScoreDisplay = React.memo(({ 
@@ -238,7 +268,12 @@ const PodiumLeaderboard = React.memo(
                     className="text-center mt-6"
                   >
                     <h2 className="font-bold text-lg sm:text-2xl md:text-3xl lg:text-4xl mb-2 text-yellow-300 drop-shadow-lg text-center">
-                      {getFirstName(onlyPlayer.name)}
+                      <SmartNameDisplay 
+                        name={onlyPlayer.name} 
+                        maxLength={10}
+                        className="font-bold text-lg sm:text-2xl md:text-3xl lg:text-4xl text-yellow-300 drop-shadow-lg"
+                        multilineClassName="text-base sm:text-xl md:text-2xl lg:text-3xl"
+                      />
                     </h2>
                     <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-black px-3 sm:px-6 py-2 sm:py-3 rounded-full font-bold text-base sm:text-xl lg:text-2xl shadow-lg">
                       <StableScoreDisplay score={onlyPlayer.score} playerId={onlyPlayer.id} /> POINTS
@@ -318,7 +353,14 @@ const PodiumLeaderboard = React.memo(
                       </div>
                       <div className="text-center mt-2 sm:mt-4">
                         <div className="text-lg sm:text-2xl mb-1 sm:mb-2">🥈</div>
-                        <h3 className="font-bold text-sm sm:text-lg lg:text-xl text-gray-300 truncate">{getFirstName(second.name)}</h3>
+                        <h3 className="font-bold text-sm sm:text-lg lg:text-xl text-gray-300 text-center">
+                          <SmartNameDisplay 
+                            name={second.name} 
+                            maxLength={7}
+                            className="text-sm sm:text-lg lg:text-xl text-gray-300"
+                            multilineClassName="text-xs sm:text-base lg:text-lg"
+                          />
+                        </h3>
                         <div className="bg-gradient-to-r from-gray-300 to-gray-400 text-gray-800 px-2 sm:px-4 py-1 sm:py-2 rounded-full font-bold text-xs sm:text-sm lg:text-base mt-1 sm:mt-2">
                           {second.score} PTS
                         </div>
@@ -353,7 +395,14 @@ const PodiumLeaderboard = React.memo(
                       </div>
                       <div className="text-center mt-2 sm:mt-4">
                         <div className="text-2xl sm:text-3xl mb-1 sm:mb-2">🥇</div>
-                        <h3 className="font-bold text-base sm:text-xl lg:text-2xl text-yellow-300 truncate">{getFirstName(first.name)}</h3>
+                        <h3 className="font-bold text-base sm:text-xl lg:text-2xl text-yellow-300 text-center">
+                          <SmartNameDisplay 
+                            name={first.name} 
+                            maxLength={8}
+                            className="text-base sm:text-xl lg:text-2xl text-yellow-300"
+                            multilineClassName="text-sm sm:text-lg lg:text-xl"
+                          />
+                        </h3>
                         <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-black px-3 sm:px-6 py-2 sm:py-3 rounded-full font-bold text-sm sm:text-base lg:text-lg mt-1 sm:mt-2">
                           <StableScoreDisplay score={first.score} playerId={first.id} /> PTS
                         </div>
@@ -444,7 +493,14 @@ const PodiumLeaderboard = React.memo(
                       </div>
                       <div className="text-center mt-2 sm:mt-3">
                         <div className="text-base sm:text-xl lg:text-2xl mb-1">🥉</div>
-                        <h3 className="font-bold text-xs sm:text-sm lg:text-base text-amber-300 truncate">{getFirstName(third.name)}</h3>
+                        <h3 className="font-bold text-xs sm:text-sm lg:text-base text-amber-300 text-center">
+                          <SmartNameDisplay 
+                            name={third.name} 
+                            maxLength={6}
+                            className="text-xs sm:text-sm lg:text-base text-amber-300"
+                            multilineClassName="text-xs sm:text-xs lg:text-sm"
+                          />
+                        </h3>
                         <div className="bg-gradient-to-r from-amber-600 to-amber-700 text-white px-2 sm:px-3 py-1 rounded-full font-bold text-xs mt-1">
                           <StableScoreDisplay score={third.score} playerId={third.id} />
                         </div>
@@ -490,7 +546,14 @@ const PodiumLeaderboard = React.memo(
                         >
                           🥇
                         </motion.div>
-                        <h3 className="font-bold text-sm sm:text-xl lg:text-2xl xl:text-3xl text-yellow-300 mb-1 sm:mb-2 truncate">{getFirstName(first.name)}</h3>
+                        <h3 className="font-bold text-sm sm:text-xl lg:text-2xl xl:text-3xl text-yellow-300 mb-1 sm:mb-2 text-center">
+                          <SmartNameDisplay 
+                            name={first.name} 
+                            maxLength={8}
+                            className="text-sm sm:text-xl lg:text-2xl xl:text-3xl text-yellow-300"
+                            multilineClassName="text-xs sm:text-lg lg:text-xl xl:text-2xl"
+                          />
+                        </h3>
                         <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-black px-3 sm:px-6 py-2 sm:py-3 rounded-full font-bold text-sm sm:text-lg lg:text-xl shadow-[0_0_15px_rgba(255,215,0,0.5)] sm:shadow-[0_0_20px_rgba(255,215,0,0.5)]">
                           {first.score} PTS
                         </div>
@@ -525,7 +588,14 @@ const PodiumLeaderboard = React.memo(
                       </div>
                       <div className="text-center mt-2 sm:mt-3">
                         <div className="text-lg sm:text-2xl lg:text-3xl mb-1">🥈</div>
-                        <h3 className="font-bold text-xs sm:text-base lg:text-lg text-gray-300 truncate">{getFirstName(second.name)}</h3>
+                        <h3 className="font-bold text-xs sm:text-base lg:text-lg text-gray-300 text-center">
+                          <SmartNameDisplay 
+                            name={second.name} 
+                            maxLength={7}
+                            className="text-xs sm:text-base lg:text-lg text-gray-300"
+                            multilineClassName="text-xs sm:text-sm lg:text-base"
+                          />
+                        </h3>
                         <div className="bg-gradient-to-r from-gray-300 to-gray-400 text-gray-800 px-2 sm:px-4 py-1 sm:py-2 rounded-full font-bold text-xs sm:text-sm lg:text-base mt-1 sm:mt-2">
                           {second.score} PTS
                         </div>
@@ -568,7 +638,14 @@ const PodiumLeaderboard = React.memo(
                           className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-purple-400 object-cover"
                         />
                         <div className="flex-1 min-w-0">
-                          <p className="font-bold text-white truncate text-xs sm:text-sm">{getFirstName(p.name)}</p>
+                          <p className="font-bold text-white text-xs sm:text-sm">
+                            <SmartNameDisplay 
+                              name={p.name} 
+                              maxLength={8}
+                              className="text-xs sm:text-sm text-white"
+                              multilineClassName="text-xs leading-tight"
+                            />
+                          </p>
                           <p className="text-purple-300 text-xs sm:text-sm font-semibold">{p.score} pts</p>
                         </div>
                       </div>
@@ -1948,7 +2025,14 @@ export default function HostContent({ gameCode }: HostContentProps) {
                                 className="w-8 h-8 sm:w-12 sm:h-12 rounded-full border-2 border-white/30 object-cover"
                               />
                               <div className="text-center">
-                                <h3 className="font-bold text-xs sm:text-sm truncate max-w-full">{getFirstName(player.name)}</h3>
+                                <h3 className="font-bold text-xs sm:text-sm max-w-full">
+                                  <SmartNameDisplay 
+                                    name={player.name} 
+                                    maxLength={7}
+                                    className="text-xs sm:text-sm font-bold"
+                                    multilineClassName="text-xs leading-tight"
+                                  />
+                                </h3>
                               </div>
                             </motion.div>
                           ))}
@@ -2086,8 +2170,13 @@ export default function HostContent({ gameCode }: HostContentProps) {
 
                           {/* Player info */}
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-bold text-white text-base truncate mb-1">
-                              {getFirstName(player.name)}
+                            <h3 className="font-bold text-white text-base mb-1">
+                              <SmartNameDisplay 
+                                name={player.name} 
+                                maxLength={8}
+                                className="text-base font-bold text-white"
+                                multilineClassName="text-sm leading-tight"
+                              />
                             </h3>
                             <p className={`text-sm font-medium ${
                               player.rank === 1

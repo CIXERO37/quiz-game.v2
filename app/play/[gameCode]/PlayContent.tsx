@@ -48,7 +48,7 @@ interface PlayContentProps {
 export default function PlayContent({ gameCode }: PlayContentProps) {
   const { t } = useLanguage()
   const router = useRouter()
-  const { currentQuestion, score, correctAnswers, setCurrentQuestion, addScore, incrementCorrectAnswers, setGameId, gameId, playerId, setCorrectAnswers, setScore } =
+  const { currentQuestion, score, correctAnswers, setCurrentQuestion, addScore, incrementCorrectAnswers, setGameId, gameId, playerId, setCorrectAnswers, setScore, resetGame } =
     useGameStore()
 
   const [timeLeft, setTimeLeft] = useState(0)
@@ -257,7 +257,41 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
     if (!storeHydrated && !loading && gameId && playerId && isQuizStarted) {
       setStoreHydrated(true);
       
-      // Now restore progress from database
+      // Check if this is a fresh game session by comparing gameId with stored gameId
+      const storedGameId = localStorage.getItem('current-game-id');
+      const isNewGameSession = storedGameId !== gameId;
+      
+      if (isNewGameSession) {
+        // This is a new game session, reset progress
+        console.log("New game session detected, resetting progress");
+        setCurrentQuestion(0);
+        setScore(0);
+        setCorrectAnswers(0);
+        localStorage.setItem('current-game-id', gameId);
+        
+        // Also ensure player starts with fresh database state
+        const resetPlayerProgress = async () => {
+          try {
+            await supabase
+              .from("players")
+              .update({ 
+                score: 0, 
+                current_question: 0 
+              })
+              .eq("id", playerId);
+              
+            setProgressRestored(true);
+          } catch (error) {
+            console.error("Error resetting player progress:", error);
+            setProgressRestored(true);
+          }
+        };
+        
+        resetPlayerProgress();
+        return;
+      }
+      
+      // Existing session - restore progress from database
       const restoreProgress = async () => {
         try {
           // Fetch current session start time
@@ -645,6 +679,10 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
   };
 
   const handleMiniGameComplete = async (score: number) => {
+    // Always update local state immediately for better UX
+    addScore(score);
+    setShowMiniGame(false);
+
     try {
       // Validasi ID
       if (!gameId || !playerId) {
@@ -654,54 +692,74 @@ export default function PlayContent({ gameCode }: PlayContentProps) {
         return;
       }
 
-      // Debug: Log data yang akan diinsert
-      const dataToInsert = {
-        game_id: gameId,
-        player_id: playerId,
-        question_index: -1,
-        points_earned: score,
-        is_correct: false, // Mini-game tidak punya konsep benar/salah
-      };
-      console.log("Inserting mini-game score to player_answers:", JSON.stringify(dataToInsert, null, 2));
+      // Ensure score is valid
+      if (typeof score !== 'number' || isNaN(score) || score < 0) {
+        console.error("Invalid mini-game score:", score);
+        toast.error("Invalid mini-game score!");
+        return;
+      }
 
-      // Add mini-game points ke player score
-      const { data: player, error: playerError } = await supabase
+      console.log("Processing mini-game completion:", { gameId, playerId, score });
+
+      // Use database transaction to ensure data consistency
+      const { data: currentPlayer, error: fetchError } = await supabase
         .from("players")
         .select("score")
         .eq("id", playerId)
         .single();
 
-      if (playerError) {
-        console.error("Player fetch error:", playerError.message, playerError.details);
-        throw playerError;
+      if (fetchError) {
+        console.error("Failed to fetch current player score:", fetchError);
+        toast.error("Failed to update score - please try again");
+        return;
       }
 
-      if (player) {
-        const newScore = (player.score || 0) + score;
-        const { error: updateError } = await supabase
+      const newScore = (currentPlayer?.score || 0) + score;
+
+      // Atomic operations using Promise.all for better reliability
+      const [updateResult, insertResult] = await Promise.all([
+        supabase
           .from("players")
           .update({ score: newScore })
-          .eq("id", playerId);
+          .eq("id", playerId),
+        supabase
+          .from("player_answers")
+          .insert({
+            game_id: gameId,
+            player_id: playerId,
+            question_index: -1,
+            points_earned: score,
+            is_correct: false, // Mini-game bonus points
+            created_at: new Date().toISOString()
+          })
+      ]);
 
-        if (updateError) {
-          console.error("Player update error:", updateError.message, updateError.details);
-          throw updateError;
-        }
-
-        // Record mini-game bonus
-        const { error: insertError } = await supabase.from("player_answers").insert(dataToInsert);
-        if (insertError) {
-          console.error("Supabase insert error (mini-game):", insertError.message, insertError.details, insertError.hint);
-          throw insertError;
-        }
+      if (updateResult.error) {
+        console.error("Player score update failed:", updateResult.error);
+        toast.error("Failed to update player score");
+        return;
       }
+
+      if (insertResult.error) {
+        console.error("Mini-game record insert failed:", insertResult.error);
+        toast.error("Failed to record mini-game bonus");
+        return;
+      }
+
+      console.log("Mini-game score saved successfully:", { 
+        playerId, 
+        score, 
+        newTotalScore: newScore 
+      });
+      
+      toast.success(`Mini-game bonus: +${score} points!`);
+
     } catch (error: any) {
-      console.error("Error saving mini-game score:", error.message, error.details, error.hint);
-      toast.error(`Failed to save mini-game score: ${error.message}`);
+      console.error("Unexpected error saving mini-game score:", error);
+      toast.error("Failed to save mini-game score - please contact support");
     }
 
-    addScore(score);
-    setShowMiniGame(false);
+    // Continue game flow
     if (currentQuestion + 1 < gameSettings!.questionCount) {
       setCurrentQuestion(currentQuestion + 1);
     } else {

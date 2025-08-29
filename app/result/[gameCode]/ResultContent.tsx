@@ -9,7 +9,8 @@ import { useGameStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Trophy, Medal, Crown, Star } from "lucide-react";
-import { getFirstName } from "@/lib/utils";
+import { getFirstName, formatDisplayName } from "@/lib/utils";
+import React from "react";
 
 interface PlayerResult {
   id: string;
@@ -18,6 +19,36 @@ interface PlayerResult {
   score: number;
   position: number;
 }
+
+// === SMART NAME DISPLAY ===
+const SmartNameDisplay = React.memo(({ 
+  name, 
+  maxLength = 8,
+  className = "",
+  multilineClassName = ""
+}: {
+  name: string;
+  maxLength?: number;
+  className?: string;
+  multilineClassName?: string;
+}) => {
+  const { displayName, isBroken } = formatDisplayName(name, maxLength)
+  
+  if (isBroken) {
+    return (
+      <span className={`${className} ${multilineClassName} whitespace-pre-line leading-tight text-center block`}>
+        {displayName}
+      </span>
+    )
+  }
+  
+  return (
+    <span className={className}>
+      {displayName}
+    </span>
+  )
+})
+SmartNameDisplay.displayName = "SmartNameDisplay"
 
 function Background() {
   return (
@@ -185,7 +216,14 @@ export default function ResultContent({ gameCode }: { gameCode: string }) {
                     </div>
                     
                     <div className="flex-1">
-                      <p className="text-white font-semibold text-lg">{getFirstName(player.name)}</p>
+                      <p className="text-white font-semibold text-lg">
+                        <SmartNameDisplay 
+                          name={player.name} 
+                          maxLength={8}
+                          className="text-white font-semibold text-lg"
+                          multilineClassName="text-base leading-tight"
+                        />
+                      </p>
                       <p className="text-slate-300 text-sm">Score</p>
                     </div>
                     
@@ -258,7 +296,14 @@ export default function ResultContent({ gameCode }: { gameCode: string }) {
             </motion.div>
 
             <div>
-              <h1 className="text-3xl font-bold text-white mb-2">{getFirstName(playerName) || "Unknown Player"}</h1>
+              <h1 className="text-3xl font-bold text-white mb-2">
+                <SmartNameDisplay 
+                  name={playerName || "Unknown Player"} 
+                  maxLength={10}
+                  className="text-3xl font-bold text-white"
+                  multilineClassName="text-2xl leading-tight"
+                />
+              </h1>
               <div className="space-y-2">
                 <motion.p 
                   className="text-6xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent"

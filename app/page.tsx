@@ -9,6 +9,7 @@ import { JoinGameDialog } from "@/components/join-game-dialog"
 import { TutorialModal } from "@/components/tutorial-modal"
 import { LanguageSelector } from "@/components/language-selector"
 import { useLanguage } from "@/contexts/language-context"
+import { useGameStore } from "@/lib/store"
 
 function GameCodeHandler({ onGameCodeDetected }: { onGameCodeDetected: (code: string) => void }) {
   const searchParams = useSearchParams()
@@ -30,12 +31,20 @@ function GameCodeHandler({ onGameCodeDetected }: { onGameCodeDetected: (code: st
 
 export default function HomePage() {
   const { t } = useLanguage()
+  const { resetGame } = useGameStore()
   const [showJoinGame, setShowJoinGame] = useState(false)
   const [gameCodeFromUrl, setGameCodeFromUrl] = useState("")
   const router = useRouter()
   const [showTutorial, setShowTutorial] = useState(false)
   const [hasUserClickedJoin, setHasUserClickedJoin] = useState(false)
   const [hasShownTutorial, setHasShownTutorial] = useState(false)
+
+  // Reset game state when user returns to landing page
+  useEffect(() => {
+    resetGame()
+    // Clear any stored game session references
+    localStorage.removeItem('current-game-id')
+  }, [resetGame])
 
   const handleGameCodeDetected = (code: string) => {
     console.log("🎯 Game code detected:", code)

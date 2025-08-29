@@ -134,7 +134,9 @@ export default function MiniGame({ level = 1, onComplete }: MiniGameProps) {
 
   useEffect(() => {
     if (stage === 'end') {
-      setTimeout(() => onComplete(score), 2000)
+      // Ensure score is valid before completing
+      const validScore = Math.max(0, Math.floor(score || 0))
+      setTimeout(() => onComplete(validScore), 2000)
     }
   }, [stage, score, onComplete])
 
