@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence, type Transition } from "framer-motion"
 import { useRouter } from "next/navigation"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useGameStore } from "@/lib/store"
@@ -42,6 +43,37 @@ interface Choice {
 interface GameSettings {
   timeLimit: number
   questionCount: number
+}
+
+// Function to get appropriate image based on quiz title
+const getQuizImage = (title: string): string => {
+  const titleLower = title.toLowerCase()
+  
+  // Mapping quiz titles to appropriate images
+  if (titleLower.includes('angka') || titleLower.includes('berhitung') || titleLower.includes('matematika')) {
+    return '/images/1-bola.png'
+  } else if (titleLower.includes('hewan') || titleLower.includes('binatang') || titleLower.includes('animal')) {
+    return '/images/kucing-lucu.png'
+  } else if (titleLower.includes('buah') || titleLower.includes('fruit')) {
+    return '/images/apel-merah.png'
+  } else if (titleLower.includes('warna') || titleLower.includes('color')) {
+    return '/images/5-bola-warna-warni.png'
+  } else if (titleLower.includes('bentuk') || titleLower.includes('shape') || titleLower.includes('geometri')) {
+    return '/images/persegi-biru.png'
+  } else if (titleLower.includes('huruf') || titleLower.includes('alphabet') || titleLower.includes('kata')) {
+    return '/images/1-buku.png'
+  } else if (titleLower.includes('transportasi') || titleLower.includes('kendaraan') || titleLower.includes('mobil')) {
+    return '/images/1-mobil.png'
+  } else if (titleLower.includes('alam') || titleLower.includes('nature') || titleLower.includes('tumbuhan')) {
+    return '/images/7-bunga.png'
+  } else if (titleLower.includes('makanan') || titleLower.includes('food') || titleLower.includes('sayuran')) {
+    return '/images/wortel-oranye.png'
+  } else if (titleLower.includes('benda') || titleLower.includes('objek') || titleLower.includes('object')) {
+    return '/images/jam-dinding-bulat.png'
+  } else {
+    // Default image for general knowledge or other topics
+    return '/images/gambar-tutor.png'
+  }
 }
 
 export default function SelectQuizPage() {
@@ -235,7 +267,7 @@ export default function SelectQuizPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
           >
             <TooltipProvider>
               {currentQuizzes.map((quiz, index) => (
@@ -248,8 +280,22 @@ export default function SelectQuizPage() {
                   variants={cardVariants}
                   transition={{ delay: index * 0.05 }}
                 >
-                  <Card className="cursor-pointer transition-all duration-300 hover:shadow-purple-100 relative bg-white/10 backdrop-blur-lg border-white/20 text-white">
-                    <CardHeader className="pb-3">
+                  <Card className="cursor-pointer transition-all duration-300 hover:shadow-purple-100 relative bg-white/10 backdrop-blur-lg border-white/20 text-white overflow-hidden">
+                    {/* Quiz Image */}
+                    <div className="relative h-32 w-full overflow-hidden">
+                      <Image
+                        src={getQuizImage(quiz.title)}
+                        alt={quiz.title}
+                        fill
+                        className="object-cover transition-transform duration-300 hover:scale-110"
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                        onError={() => {
+                          // Fallback handled in the getQuizImage function
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent z-10" />
+                    </div>
+                    <CardHeader className="pb-3 relative -mt-4 z-20">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                           <Tooltip>
