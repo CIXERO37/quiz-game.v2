@@ -17,7 +17,7 @@ import { useGameStore } from "@/lib/store"
 import { supabase } from "@/lib/supabase"
 import { v4 as uuidv4 } from "uuid"
 import { useLanguage } from "@/contexts/language-context"
-
+// penanda
 const ANIMAL_AVATARS = [
   "https://api.dicebear.com/9.x/micah/svg?seed=cat",
   "https://api.dicebear.com/9.x/micah/svg?seed=dog",
