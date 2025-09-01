@@ -75,9 +75,18 @@ export default function HomePage() {
   }
 
   // Handle tutorial close
-  const handleTutorialClose = () => {
-    console.log("🎯 Tutorial closed")
+  const handleTutorialClose = (closedByX: boolean = false) => {
+    console.log("🎯 Tutorial closed", closedByX ? "by X button" : "normally")
     setShowTutorial(false)
+    
+    // Jika ditutup dengan tombol X, jangan buka dialog join
+    if (closedByX) {
+      console.log("🎯 Tutorial closed by X - not opening join dialog")
+      setGameCodeFromUrl("") // Reset gameCodeFromUrl
+      setHasUserClickedJoin(false) // Reset hasUserClickedJoin
+      return
+    }
+    
     // Jika ada game code dari URL, langsung buka dialog join
     if (gameCodeFromUrl) {
       console.log("🎯 Opening join game dialog after tutorial close")
