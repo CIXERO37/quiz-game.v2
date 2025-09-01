@@ -52,7 +52,7 @@ const getQuizImage = (title: string): string => {
   
   // Mapping quiz titles to appropriate images
   if (titleLower.includes('angka') || titleLower.includes('berhitung') || titleLower.includes('matematika')) {
-    return '/images/1-bola.png'
+    return '/images/perbaikan.png'
   } else if (titleLower.includes('hewan') || titleLower.includes('binatang') || titleLower.includes('animal')) {
     return '/images/kucing-lucu.png'
   } else if (titleLower.includes('buah') || titleLower.includes('fruit')) {
@@ -97,9 +97,6 @@ export default function SelectQuizPage() {
   const difficultyLevels = [
     { value: "all", label: "All Category" },
     { value: "TK", label: "TK Level" },
-    { value: "SD", label: "SD Level" },
-    { value: "SMP", label: "SMP Level" },
-    { value: "SMK", label: "SMK Level" },
   ]
 
   const fetchQuizzes = async () => {
