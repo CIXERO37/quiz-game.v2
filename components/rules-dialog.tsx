@@ -246,6 +246,7 @@ export function RulesDialog({ open, onOpenChange, quiz, onStartGame }: RulesDial
                       >
                         <div className="absolute inset-0 bg-gradient-to-br from-cyan-400/20 to-blue-400/20 animate-pulse"></div>
                         <Play className="h-4 w-4 relative z-10" />
+                        {/* penanda */}
                         <span className="relative z-10">Start Game</span>
                         <div className="absolute top-2 right-2 w-2 h-2 bg-yellow-300 rounded-full animate-ping"></div>
                       </Button>

@@ -166,6 +166,7 @@ export function TutorialModal({ open, onClose, onConfirm }: TutorialModalProps) 
                     </div>
                     <p className="flex-1 text-sm leading-relaxed">{t('waitForHost', 'Wait for the host to start the quiz.')}</p>
                   </div>
+                  {/* penanda */}
                 </div>
               </motion.div>
             )}
