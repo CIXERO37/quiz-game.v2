@@ -25,6 +25,7 @@ interface Quiz {
   id: number
   title: string
   description: string
+  difficulty_level?: string
   questions: Question[]
 }
 
@@ -80,17 +81,29 @@ export default function SelectQuizPage() {
   const [isLoading, setIsLoading] = useState<number | null>(null)
   const [quizzes, setQuizzes] = useState<Quiz[]>([])
   const [searchQuery, setSearchQuery] = useState("")
+  const [appliedSearchQuery, setAppliedSearchQuery] = useState("")
+  const [isSearching, setIsSearching] = useState(false)
+  const [isTyping, setIsTyping] = useState(false)
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null)
   const [showRulesDialog, setShowRulesDialog] = useState(false)
   const [expandedQuizId, setExpandedQuizId] = useState<number | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 9
+  const [selectedLevel, setSelectedLevel] = useState<string>("all")
+  const itemsPerPage = 15
 
   const router = useRouter()
   const { setQuizId, setGameCode, setGameId, setIsHost } = useGameStore()
 
+  const difficultyLevels = [
+    { value: "all", label: "All Category" },
+    { value: "TK", label: "TK Level" },
+    { value: "SD", label: "SD Level" },
+    { value: "SMP", label: "SMP Level" },
+    { value: "SMK", label: "SMK Level" },
+  ]
+
   const fetchQuizzes = async () => {
-    const { data, error } = await supabase
+    let query = supabase
       .from("quizzes")
       .select(`
         *,
@@ -104,8 +117,13 @@ export default function SelectQuizPage() {
           )
         )
       `)
-      .eq("difficulty_level", "TK")
-      .order("id")
+    
+    // Apply level filter only if not "all"
+    if (selectedLevel !== "all") {
+      query = query.eq("difficulty_level", selectedLevel)
+    }
+    
+    const { data, error } = await query.order("id")
 
     if (!error && data) {
       setQuizzes(data as Quiz[])
@@ -114,7 +132,7 @@ export default function SelectQuizPage() {
 
   useEffect(() => {
     fetchQuizzes()
-  }, [])
+  }, [selectedLevel])
 
   const handleStartGame = (quiz: Quiz) => {
     setSelectedQuiz(quiz)
@@ -186,10 +204,39 @@ export default function SelectQuizPage() {
     }
   }
 
+  const handleSearch = () => {
+    setIsSearching(true)
+    setIsTyping(false)
+    // Simulate search delay for better UX
+    setTimeout(() => {
+      setAppliedSearchQuery(searchQuery)
+      setCurrentPage(1)
+      setIsSearching(false)
+    }, 500)
+  }
+
+  const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setSearchQuery(value)
+    
+    if (value.trim() !== "") {
+      setIsTyping(true)
+    } else {
+      setIsTyping(false)
+      setAppliedSearchQuery("")
+    }
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSearch()
+    }
+  }
+
   const filteredQuizzes = quizzes.filter(
     (quiz) =>
-      quiz.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      quiz.description.toLowerCase().includes(searchQuery.toLowerCase()),
+      quiz.title.toLowerCase().includes(appliedSearchQuery.toLowerCase()) ||
+      quiz.description.toLowerCase().includes(appliedSearchQuery.toLowerCase()),
   )
 
   const totalPages = Math.ceil(filteredQuizzes.length / itemsPerPage)
@@ -199,7 +246,7 @@ export default function SelectQuizPage() {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery])
+  }, [appliedSearchQuery])
 
   const cardSpringTransition: Transition = { type: "spring", stiffness: 100, damping: 10 }
 
@@ -249,26 +296,84 @@ export default function SelectQuizPage() {
             </h1>
           </div>
 
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              type="text"
-              placeholder="Search quizzes..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2 w-64 rounded-lg bg-white/10 backdrop-blur-lg border-white/20 text-white placeholder:text-gray-300 focus:bg-white/20 focus:border-purple-400 transition-all duration-300"
-            />
+          <div className="flex items-center gap-4">
+            {/* Search Input */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Search quizzes..."
+                value={searchQuery}
+                onChange={handleSearchInputChange}
+                onKeyPress={handleKeyPress}
+                className="pl-10 pr-12 rounded-lg bg-white/10 backdrop-blur-lg border-white/20 text-white placeholder:text-gray-300 focus:bg-white/20 focus:border-purple-400 transition-all duration-300"
+              />
+              {/* Search Button Icon */}
+              <button
+                onClick={handleSearch}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-purple-300 transition-colors duration-200"
+                title="Search quizzes"
+              >
+                <Search className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Level Selector */}
+            <div className="relative">
+              <select
+                value={selectedLevel}
+                onChange={(e) => setSelectedLevel(e.target.value)}
+                className="px-4 py-2 rounded-lg bg-white/10 backdrop-blur-lg border border-white/20 text-white focus:bg-white/20 focus:border-purple-400 transition-all duration-300 cursor-pointer"
+              >
+                {difficultyLevels.map((level) => (
+                  <option key={level.value} value={level.value} className="bg-gray-800 text-white">
+                    {level.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </motion.div>
 
         {/* Konten utama */}
         <div className="flex-grow">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
-          >
+          {/* Search Results Info */}
+          {appliedSearchQuery && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              className="mb-6 text-center"
+            >
+              <p className="text-gray-300 text-lg">
+                Showing {filteredQuizzes.length} quiz{filteredQuizzes.length !== 1 ? 'es' : ''} for &quot;{appliedSearchQuery}&quot;
+              </p>
+            </motion.div>
+          )}
+
+          {/* Loading State - Show when searching or typing */}
+          {(isSearching || isTyping) && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3 }}
+              className="flex flex-col items-center justify-center py-20"
+            >
+              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-purple-400 mb-4"></div>
+              <p className="text-gray-300 text-lg">
+                {isSearching ? "Searching for quizzes..." : "Loading. . ."}
+              </p>
+            </motion.div>
+          )}
+          
+          {/* Quiz Grid - Only show when not searching and not typing */}
+          {!isSearching && !isTyping && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6"
+            >
             <TooltipProvider>
               {currentQuizzes.map((quiz, index) => (
                 <motion.div
@@ -311,7 +416,7 @@ export default function SelectQuizPage() {
                             </TooltipContent>
                           </Tooltip>
                           <span className="bg-gradient-to-r from-purple-500 to-blue-500 text-white px-2 py-1 mx-1 rounded-full text-xs flex-shrink-0">
-                            TK Level
+                            {quiz.difficulty_level || "Unknown"} Level
                           </span>
                         </div>
 
@@ -372,23 +477,35 @@ export default function SelectQuizPage() {
                   </Card>
                 </motion.div>
               ))}
-            </TooltipProvider>
-          </motion.div>
+                         </TooltipProvider>
+           </motion.div>
+          )}
 
-          {filteredQuizzes.length === 0 && (
+          {filteredQuizzes.length === 0 && appliedSearchQuery && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.6, delay: 0.3 }}
               className="text-center py-12"
             >
-              <p className="text-gray-300 text-lg">No quizzes found matching your search.</p>
+              <p className="text-gray-300 text-lg mb-4">No quizzes found matching &quot;{appliedSearchQuery}&quot;.</p>
+                             <Button
+                 onClick={() => {
+                   setSearchQuery("")
+                   setAppliedSearchQuery("")
+                   setIsTyping(false)
+                 }}
+                 variant="outline"
+                 className="bg-white/10 backdrop-blur-lg border-white/20 text-white hover:bg-white/20 transition-all duration-300"
+               >
+                 Clear Search
+               </Button>
             </motion.div>
           )}
         </div>
 
         {/* ✅ Pagination selalu di bawah tengah */}
-        {filteredQuizzes.length > 0 && (
+        {!isSearching && !isTyping && filteredQuizzes.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
