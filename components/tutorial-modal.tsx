@@ -166,20 +166,6 @@ export function TutorialModal({ open, onClose, onConfirm }: TutorialModalProps) 
                     </div>
                     <p className="flex-1 text-sm leading-relaxed">{t('waitForHost', 'Wait for the host to start the quiz.')}</p>
                   </div>
-                  
-                  <div className="flex items-start gap-3">
-                    <div className="w-5 h-5 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center text-sm font-bold text-white shadow-lg shadow-yellow-400/30 flex-shrink-0 mt-0.5">
-                      4
-                    </div>
-                    <p className="flex-1 text-sm leading-relaxed">Answer questions quickly and accurately to win!</p>
-                  </div>
-                  
-                  <div className="flex items-start gap-3">
-                    <div className="w-5 h-5 bg-gradient-to-br from-red-400 to-pink-500 rounded-full flex items-center justify-center text-sm font-bold text-white shadow-lg shadow-red-400/30 flex-shrink-0 mt-0.5">
-                      5
-                    </div>
-                    <p className="flex-1 text-sm leading-relaxed">Your score is based on speed and correctness.</p>
-                  </div>
                 </div>
               </motion.div>
             )}

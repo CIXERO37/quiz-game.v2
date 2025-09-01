@@ -195,7 +195,7 @@ export function RulesDialog({ open, onOpenChange, quiz, onStartGame }: RulesDial
                       </SelectTrigger>
                       <SelectContent className="bg-black/90 border-cyan-400/30 backdrop-blur-xl">
                         {timeOptions.map((minutes) => (
-                          <SelectItem key={minutes} value={String(minutes)} className="text-cyan-100 hover:bg-cyan-400/20 focus:bg-cyan-400/20 font-mono">
+                          <SelectItem key={minutes} value={String(minutes)} className="text-cyan-100 hover:bg-cyan-400/30 hover:text-white focus:bg-cyan-400/30 focus:text-white font-mono transition-all duration-200 cursor-pointer">
                             {minutes} minutes
                           </SelectItem>
                         ))}
@@ -218,7 +218,7 @@ export function RulesDialog({ open, onOpenChange, quiz, onStartGame }: RulesDial
                       </SelectTrigger>
                       <SelectContent className="bg-black/90 border-cyan-400/30 backdrop-blur-xl">
                         {getQuestionOptions().map((count) => (
-                          <SelectItem key={count} value={String(count)} className="text-cyan-100 hover:bg-cyan-400/20 focus:bg-cyan-400/20 font-mono">
+                          <SelectItem key={count} value={String(count)} className="text-cyan-100 hover:bg-cyan-400/30 hover:text-white focus:bg-cyan-400/30 focus:text-white font-mono transition-all duration-200 cursor-pointer">
                             {count} questions
                           </SelectItem>
                         ))}
@@ -227,12 +227,12 @@ export function RulesDialog({ open, onOpenChange, quiz, onStartGame }: RulesDial
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex gap-3 pt-4">
+                  <div className="flex justify-between pt-4">
                     <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                       <Button
                         variant="outline"
                         onClick={() => onOpenChange(false)}
-                        className="flex-1 flex items-center gap-2 bg-black/30 border-cyan-400/30 text-cyan-100 hover:bg-cyan-400/20 hover:border-cyan-400 backdrop-blur-sm font-mono"
+                        className="flex items-center gap-2 bg-black/30 border-cyan-400/30 text-cyan-100 hover:bg-cyan-400/20 hover:border-cyan-400 backdrop-blur-sm font-mono px-6"
                       >
                         <ArrowLeft className="h-4 w-4" />
                         Back
@@ -241,7 +241,7 @@ export function RulesDialog({ open, onOpenChange, quiz, onStartGame }: RulesDial
                     <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                       <Button
                         onClick={handleStartGame}
-                        className="flex-1 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-semibold flex items-center gap-2 shadow-lg shadow-cyan-500/30 border border-cyan-400/30 backdrop-blur-sm font-mono relative overflow-hidden"
+                        className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-semibold flex items-center gap-2 shadow-lg shadow-cyan-500/30 border border-cyan-400/30 backdrop-blur-sm font-mono relative overflow-hidden px-6"
                         style={{ imageRendering: "pixelated" }}
                       >
                         <div className="absolute inset-0 bg-gradient-to-br from-cyan-400/20 to-blue-400/20 animate-pulse"></div>
