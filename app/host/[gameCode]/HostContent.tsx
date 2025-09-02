@@ -21,6 +21,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Maximize2,
+  UserX,
 } from "lucide-react"
 import { useGameStore } from "@/lib/store"
 import { supabase } from "@/lib/supabase"
@@ -1454,6 +1455,37 @@ export default function HostContent({ gameCode }: HostContentProps) {
     }
   }
 
+  const kickPlayer = async (playerId: string, playerName: string) => {
+    try {
+      console.log("[HOST] 🦵 Kicking player:", playerName, "ID:", playerId, "Game ID:", gameId)
+      
+      // Delete player from database - this will trigger real-time listeners
+      const { error, data } = await supabase
+        .from("players")
+        .delete()
+        .eq("id", playerId)
+        .eq("game_id", gameId)
+        .select()
+
+      if (error) {
+        console.error("[HOST] ❌ Error kicking player:", error)
+        toast.error(`Failed to kick ${playerName}`)
+        return
+      }
+
+      console.log("[HOST] ✅ Player kicked successfully:", playerName)
+      console.log("[HOST] 📊 Deleted data:", data)
+      toast.success(`Kicked ${playerName} from the game`)
+      
+      // The real-time listener will automatically handle removing the player from state
+      // and the player's page will automatically detect the deletion and redirect
+      
+    } catch (error) {
+      console.error("[HOST] ❌ Error in kickPlayer:", error)
+      toast.error(`Failed to kick ${playerName}`)
+    }
+  }
+
   const endQuiz = async () => {
     try {
       await supabase
@@ -2015,8 +2047,17 @@ export default function HostContent({ gameCode }: HostContentProps) {
                               initial={{ opacity: 0, scale: 0.8 }}
                               animate={{ opacity: 1, scale: 1 }}
                               transition={{ delay: index * 0.05 }}
-                              className="bg-white/10 rounded-lg p-2 sm:p-4 flex flex-col items-center gap-2 sm:gap-3 backdrop-blur-sm"
+                              className="bg-white/10 rounded-lg p-2 sm:p-4 flex flex-col items-center gap-2 sm:gap-3 backdrop-blur-sm relative"
                             >
+                              {/* Kick Button */}
+                              <button
+                                onClick={() => kickPlayer(player.id, player.name)}
+                                className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 transition-colors duration-200 z-10"
+                                title={`Kick ${player.name}`}
+                              >
+                                <UserX size={12} />
+                              </button>
+                              
                               <Image
                                 src={player.avatar || "/placeholder.svg?height=48&width=48&text=Player"}
                                 alt={getFirstName(player.name)}
