@@ -227,6 +227,15 @@ const PodiumLeaderboard = React.memo(
           >
 
 
+            <motion.h2 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+              className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold mb-2 sm:mb-4 text-center text-white/80"
+            >
+              Space-Quiz
+            </motion.h2>
+
             <motion.h1 
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
@@ -320,6 +329,15 @@ const PodiumLeaderboard = React.memo(
             transition={{ duration: 1 }}
             className="min-h-screen flex flex-col items-center justify-center p-2 sm:p-4 lg:p-8 font-mono text-white relative z-10"
           >
+            <motion.h2 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.1 }}
+              className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold mb-2 sm:mb-4 text-center text-white/80"
+            >
+              Space-Quiz
+            </motion.h2>
+
             <motion.h1 
               initial={{ y: -50, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -460,6 +478,15 @@ const PodiumLeaderboard = React.memo(
           className="min-h-screen flex items-center justify-center p-2 sm:p-4 lg:p-8 relative z-10"
         >
           <div className="text-center w-full max-w-6xl">
+            <motion.h2 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.1 }}
+              className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold mb-2 sm:mb-4 text-center text-white/80"
+            >
+              Space-Quiz
+            </motion.h2>
+
             <motion.h1 
               initial={{ scale: 0, rotate: -10 }}
               animate={{ scale: 1, rotate: 0 }}
@@ -1937,7 +1964,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
             <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}>
               <div className="bg-white/10 border-2 border-white/20 p-4 sm:p-6 rounded-lg backdrop-blur-sm">
                 <h2 className="text-base sm:text-2xl font-bold mb-4 flex items-center gap-2">
-                  Space-Dodge Quiz
+                  Space-Quiz
                 </h2>
 
                 <div className="flex flex-wrap gap-2 sm:gap-4 justify-center mb-4">
@@ -2100,7 +2127,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
                     <div className="flex items-center gap-2">
                       <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
-                      <span className="text-sm sm:text-lg">Quiz - Game {gameCode}</span>
+                      <span className="text-sm sm:text-lg">Space-Quiz - Game {gameCode}</span>
                     </div>
                     <div className="flex flex-wrap gap-2 sm:gap-3">
                       <div className="flex items-center gap-1 sm:gap-2 bg-blue-100 text-blue-800 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm">
