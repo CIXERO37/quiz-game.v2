@@ -989,7 +989,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
             console.log("[HOST] 🎉 All players completed quiz - finishing game")
             await supabase.from("games").update({ finished: true, is_started: false }).eq("id", gameId)
             setShowLeaderboard(true)
-            toast.success("🎉 All players have completed the quiz!")
+
           } else {
             console.log(`[HOST] ⏱️ Quiz too short (${Math.round(quizDuration/1000)}s) - waiting for minimum duration`)
           }
@@ -1117,7 +1117,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
           if (payload.new.finished) {
             setQuizStarted(false)
             setShowLeaderboard(true)
-            toast.success("🎉 Quiz ended!")
+
           }
           if (payload.new.is_started) setQuizStarted(true)
           
@@ -1497,7 +1497,7 @@ export default function HostContent({ gameCode }: HostContentProps) {
         })
         .eq("id", gameId)
 
-      toast.success("🏁 Quiz ended!")
+
       setQuizStarted(false)
       setShowLeaderboard(true)
       setQuizManuallyEnded(true) // Mark quiz as manually ended
