@@ -113,7 +113,69 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
   }, [gameCode, router])
 
   useEffect(() => {
-    if (loading || !gameId || isRedirecting) return
+    if (loading || !gameId || !playerName || isRedirecting) return
+
+    console.log("[PLAYER] 🎧 Setting up kick listener for player:", playerName, "in game:", gameId)
+
+    // Listen for real-time player deletion (kick events)
+    const playersSubscription = supabase
+      .channel(`players-${gameId}`)
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "players", filter: `game_id=eq.${gameId}` },
+        async (payload) => {
+          console.log("[PLAYER] 🔴 Player deleted:", payload.old)
+          console.log("[PLAYER] 🔍 Current player name:", playerName)
+          console.log("[PLAYER] 🔍 Deleted player name:", payload.old.name)
+          const deletedPlayer = payload.old
+          
+          // Check if the deleted player is the current player
+          if (deletedPlayer.name === playerName) {
+            console.log("[PLAYER] 🦵 Current player was kicked by host - REDIRECTING")
+            toast.error("You have been kicked from the game by the host")
+            
+            // Clean up and redirect
+            await cleanupPresence()
+            clearGame?.()
+            localStorage.removeItem("player")
+            router.replace("/")
+            return
+          } else {
+            console.log("[PLAYER] ℹ️ Another player was deleted, not current player")
+          }
+        },
+      )
+      .subscribe((status) => {
+        console.log("[PLAYER] 📡 Subscription status:", status)
+      })
+
+    // Fallback: Check if player still exists in database every 2 seconds
+    const playerCheckInterval = setInterval(async () => {
+      if (!gameId || !playerName || isRedirecting) return
+      
+      try {
+        const { data, error } = await supabase
+          .from("players")
+          .select("id, name")
+          .eq("game_id", gameId)
+          .eq("name", playerName)
+          .single()
+
+        if (error || !data) {
+          console.log("[PLAYER] 🔍 Player not found in database - might have been kicked")
+          console.log("[PLAYER] 🦵 Redirecting to home page")
+          toast.error("You have been kicked from the game by the host")
+          
+          await cleanupPresence()
+          clearGame?.()
+          localStorage.removeItem("player")
+          router.replace("/")
+          return
+        }
+      } catch (checkError) {
+        console.error("[PLAYER] ❌ Error checking player existence:", checkError)
+      }
+    }, 2000)
 
     const tick = async () => {
       try {
@@ -205,8 +267,12 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
 
     tick()
     const iv = setInterval(tick, 200)
-    return () => clearInterval(iv)
-  }, [loading, gameId, gameCode, router, isRedirecting])
+    return () => {
+      clearInterval(iv)
+      clearInterval(playerCheckInterval)
+      playersSubscription.unsubscribe()
+    }
+  }, [loading, gameId, gameCode, router, isRedirecting, playerName, clearGame])
 
   const showExitDialog = () => {
     setShowExitConfirm(true)
@@ -430,7 +496,7 @@ export default function WaitContent({ gameCode }: WaitContentProps) {
                 <div className="text-4xl mb-4">⚠️</div>
                 <h2 className="text-xl mb-4 font-bold">Exit Game?</h2>
                 <p className="text-sm mb-6 text-white/80">
-                  Are you sure you want to leave the game? You'll need to join again if you change your mind.
+                  Are you sure you want to leave the game? You will need to join again if you change your mind.
                 </p>
                 <div className="flex flex-col sm:flex-row justify-center gap-3">
                   <button
