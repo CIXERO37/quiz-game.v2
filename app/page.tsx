@@ -279,7 +279,7 @@ export default function HomePage() {
               imageRendering: "pixelated",
             }}
           >
-            {t('title', 'QUIZ GAME')}
+            {t('title', 'SPACE QUIZ')}
             <div className="absolute -top-2 -right-2 w-4 h-4 bg-yellow-300 rounded-full animate-ping opacity-75"></div>
             <div
               className="absolute -top-1 -left-3 w-2 h-2 bg-cyan-300 rounded-full animate-pulse"

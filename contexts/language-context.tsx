@@ -19,7 +19,7 @@ type TranslationKey =
 const translations: Record<string, Record<TranslationKey, string>> = {
   en: {
     // Main page
-    "title": "QUIZ GAME",
+    "title": "SPACE QUIZ",
     "subtitle": "Play a quiz game and with your friends!",
     "host": "HOST",
     "join": "JOIN",
@@ -106,7 +106,7 @@ const translations: Record<string, Record<TranslationKey, string>> = {
   },
   id: {
     // Main page
-    "title": "PERMAINAN KUIS",
+    "title": "KUIS RUANG ANGKASA",
     "subtitle": "Mainkan permainan kuis bersama teman-temanmu!",
     "host": "HOST",
     "join": "GABUNG",
@@ -193,7 +193,7 @@ const translations: Record<string, Record<TranslationKey, string>> = {
   },
   zh: {
     // Main page
-    "title": "问答游戏",
+    "title": "太空问答",
     "subtitle": "和你的朋友一起玩问答游戏！",
     "host": "主持",
     "join": "加入",

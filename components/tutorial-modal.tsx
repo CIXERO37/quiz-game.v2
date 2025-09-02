@@ -229,7 +229,7 @@ export function TutorialModal({ open, onClose, onConfirm }: TutorialModalProps) 
                 <Button 
                   variant="outline" 
                   onClick={prevStep}
-                  className="bg-black/30 border-cyan-400/30 text-cyan-100 hover:bg-cyan-400/20 hover:border-cyan-400 backdrop-blur-sm font-mono text-sm px-3 py-2 h-10"
+                  className="bg-black/30 border-cyan-400/30 text-cyan-100 hover:bg-cyan-500/30 hover:border-cyan-400 hover:text-white backdrop-blur-sm font-mono text-sm px-3 py-2 h-10 transition-all duration-200"
                 >
                   {t('previous', 'Back')}
                 </Button>
@@ -241,7 +241,7 @@ export function TutorialModal({ open, onClose, onConfirm }: TutorialModalProps) 
                   <Button 
                     variant="outline" 
                     onClick={handleFinish}
-                    className="bg-black/30 border-cyan-400/30 text-cyan-200 hover:bg-cyan-400/20 hover:border-cyan-400 backdrop-blur-sm font-mono text-sm px-3 py-2 h-10"
+                    className="bg-black/30 border-cyan-400/30 text-cyan-200 hover:bg-cyan-500/30 hover:border-cyan-400 hover:text-white backdrop-blur-sm font-mono text-sm px-3 py-2 h-10 transition-all duration-200"
                   >
                     {t('skip', 'Skip')}
                   </Button>

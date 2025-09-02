@@ -232,7 +232,7 @@ export function RulesDialog({ open, onOpenChange, quiz, onStartGame }: RulesDial
                       <Button
                         variant="outline"
                         onClick={() => onOpenChange(false)}
-                        className="flex items-center gap-2 bg-black/30 border-cyan-400/30 text-cyan-100 hover:bg-cyan-400/20 hover:border-cyan-400 backdrop-blur-sm font-mono px-6"
+                        className="flex items-center gap-2 bg-black/30 border-cyan-400/30 text-cyan-100 hover:bg-cyan-500/30 hover:border-cyan-400 hover:text-white backdrop-blur-sm font-mono px-6 transition-all duration-200"
                       >
                         <ArrowLeft className="h-4 w-4" />
                         Back
