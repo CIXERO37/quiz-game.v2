@@ -387,18 +387,28 @@ export default function SpaceDodge({ onComplete }: Props) {
         style={{ imageRendering: "pixelated", pointerEvents: "none" }}
       />
 
-      {/* HUD */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-4 bg-gradient-to-r from-purple-900/80 to-indigo-900/80 backdrop-blur-md px-6 py-3 rounded-lg border-2 border-yellow-300 shadow-lg">
-        <div className="flex items-center gap-2">
-          <span className="font-bold text-white">⏱ {timeLeft}s</span>
-          <div className="w-32 h-2 bg-white/20 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-yellow-300 transition-all"
-              style={{ width: `${((30 - timeLeft) / 30) * 100}%` }} // bar bertambah dari kiri ke kanan
-            />
-          </div>
+      {/* HUD with Game Title */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-4">
+        {/* Game Title - Left side */}
+        <div className="bg-gradient-to-r from-purple-900/80 to-indigo-900/80 backdrop-blur-md px-4 py-3 rounded-lg border-2 border-yellow-300 shadow-lg">
+          <h2 className="text-sm font-bold text-transparent bg-gradient-to-r from-cyan-300 to-purple-300 bg-clip-text font-mono">
+            SPACE QUIZ
+          </h2>
         </div>
-        <span className="font-bold text-yellow-300">⭐ {Math.floor(score)}</span>
+        
+        {/* Main HUD */}
+        <div className="flex items-center gap-4 bg-gradient-to-r from-purple-900/80 to-indigo-900/80 backdrop-blur-md px-6 py-3 rounded-lg border-2 border-yellow-300 shadow-lg">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-white">⏱ {timeLeft}s</span>
+            <div className="w-32 h-2 bg-white/20 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-yellow-300 transition-all"
+                style={{ width: `${((30 - timeLeft) / 30) * 100}%` }} // bar bertambah dari kiri ke kanan
+              />
+            </div>
+          </div>
+          <span className="font-bold text-yellow-300">⭐ {Math.floor(score)}</span>
+        </div>
       </div>
 
       {/* Ship */}
