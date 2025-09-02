@@ -191,7 +191,7 @@ export default function ResultContent({ gameCode }: { gameCode: string }) {
             <p className="text-slate-300 text-lg">Game Code: {gameCode.toUpperCase()}</p>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-4">
             {playerResults.map((player, index) => {
               const style = getPositionStyle(player.position);
               return (
@@ -201,37 +201,36 @@ export default function ResultContent({ gameCode }: { gameCode: string }) {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.1 }}
                   whileHover={{ scale: 1.02 }}
-                  className={`relative overflow-hidden rounded-xl border ${style.border} ${style.bg} backdrop-blur-sm shadow-lg ${style.glow}`}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent" />
-                  
-                  <div className="relative p-4 flex items-center gap-4">
-                    <div className="flex items-center gap-3">
-                      {style.icon}
-                      <img 
-                        src={player.avatar} 
-                        alt={getFirstName(player.name)}
-                        className="w-12 h-12 rounded-full object-cover border-2 border-white/20"
-                      />
-                    </div>
-                    
-                    <div className="flex-1">
-                      <p className="text-white font-semibold text-lg">
-                        <SmartNameDisplay 
-                          name={player.name} 
-                          maxLength={8}
-                          className="text-white font-semibold text-lg"
-                          multilineClassName="text-base leading-tight"
+                  <div className={`bg-black/70 border-4 ${style.border} p-6 rounded-lg shadow-[8px_8px_0px_#000] font-mono text-white transition-all duration-300`}>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-3">
+                        {style.icon}
+                        <img 
+                          src={player.avatar} 
+                          alt={getFirstName(player.name)}
+                          className="w-14 h-14 rounded-full object-cover border-2 border-white"
                         />
-                      </p>
-                      <p className="text-slate-300 text-sm">Score</p>
-                    </div>
-                    
-                    <div className="text-right">
-                      <p className={`text-3xl font-bold ${style.text}`}>
-                        {player.score.toLocaleString()}
-                      </p>
-                      <p className="text-slate-400 text-sm">points</p>
+                      </div>
+                      
+                      <div className="flex-1">
+                        <h3 className="text-white font-bold text-xl mb-1 drop-shadow-[2px_2px_0px_#000]">
+                          <SmartNameDisplay 
+                            name={player.name} 
+                            maxLength={8}
+                            className="text-white font-bold text-xl"
+                            multilineClassName="text-lg leading-tight"
+                          />
+                        </h3>
+                        <p className="text-white/70 text-sm">Score</p>
+                      </div>
+                      
+                      <div className="text-right">
+                        <p className={`text-4xl font-bold ${style.text} mb-1 drop-shadow-[2px_2px_0px_#000]`}>
+                          {player.score.toLocaleString()}
+                        </p>
+                        <p className="text-white/70 text-sm">points</p>
+                      </div>
                     </div>
                   </div>
                 </motion.div>
@@ -245,15 +244,15 @@ export default function ResultContent({ gameCode }: { gameCode: string }) {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5 }}
           >
-            <Button
+            <button
               onClick={() => {
                 resetGame();
                 router.push("/");
               }}
-              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-8 py-3 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all"
+              className="bg-purple-500 hover:bg-purple-600 border-2 border-purple-700 px-8 py-3 rounded-lg text-white font-bold shadow-[4px_4px_0px_#000] text-lg transition-all duration-200 hover:shadow-[6px_6px_0px_#000] hover:-translate-y-1"
             >
               Back to Dashboard
-            </Button>
+            </button>
           </motion.div>
         </motion.div>
       </div>
@@ -268,7 +267,7 @@ export default function ResultContent({ gameCode }: { gameCode: string }) {
           transition={{ type: "spring", stiffness: 200, damping: 20 }}
           className="max-w-md w-full"
         >
-          <div className="bg-gradient-to-b from-slate-800/90 to-slate-900/90 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-8 text-center space-y-6 shadow-2xl">
+          <div className="bg-black/70 border-4 border-white p-8 rounded-lg shadow-[8px_8px_0px_#000] font-mono text-white text-center space-y-6">
             <motion.div
               animate={{ 
                 scale: [1, 1.05, 1],
@@ -284,19 +283,19 @@ export default function ResultContent({ gameCode }: { gameCode: string }) {
               <img
                 src={playerAvatar || "/default-avatar.png"}
                 alt={getFirstName(playerName)}
-                className="w-32 h-32 rounded-full mx-auto object-cover border-4 border-purple-500 shadow-lg"
+                className="w-32 h-32 rounded-full mx-auto object-cover border-4 border-white"
               />
               <motion.div
                 animate={{ scale: [1, 1.2, 1] }}
                 transition={{ duration: 1.5, repeat: Infinity }}
-                className="absolute -top-2 -right-2 w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center"
+                className="absolute -top-2 -right-2 w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center border-2 border-white"
               >
-                <span className="text-sm font-bold">{userPosition}</span>
+                <span className="text-sm font-bold text-black">{userPosition}</span>
               </motion.div>
             </motion.div>
 
             <div>
-              <h1 className="text-3xl font-bold text-white mb-2">
+              <h1 className="text-3xl font-bold text-white mb-2 drop-shadow-[2px_2px_0px_#000]">
                 <SmartNameDisplay 
                   name={playerName || "Unknown Player"} 
                   maxLength={10}
@@ -306,14 +305,14 @@ export default function ResultContent({ gameCode }: { gameCode: string }) {
               </h1>
               <div className="space-y-2">
                 <motion.p 
-                  className="text-6xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent"
+                  className="text-6xl font-bold text-yellow-300 drop-shadow-[4px_4px_0px_#000]"
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ type: "spring", delay: 0.2 }}
                 >
                   {score || 0}
                 </motion.p>
-                <p className="text-slate-300 text-lg">points</p>
+                <p className="text-white/70 text-lg">points</p>
               </div>
             </div>
 
@@ -323,21 +322,21 @@ export default function ResultContent({ gameCode }: { gameCode: string }) {
               transition={{ delay: 0.3 }}
               className="space-y-4"
             >
-              <div className="bg-slate-700/50 rounded-lg p-4">
-                <p className="text-slate-300">Your Position</p>
-                <p className="text-3xl font-bold text-purple-400">#{userPosition || "N/A"}</p>
+              <div className="bg-black/50 border-2 border-white p-4 rounded-lg">
+                <p className="text-white/70 text-sm mb-1">Your Position</p>
+                <p className="text-3xl font-bold text-yellow-300 drop-shadow-[2px_2px_0px_#000]">#{userPosition || "N/A"}</p>
               </div>
               
-              <Button
+              <button
                 onClick={() => {
                   resetGame();
                   router.push("/");
                 }}
-                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white py-3 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all"
+                className="w-full bg-purple-500 hover:bg-purple-600 border-2 border-purple-700 px-4 py-3 rounded-lg text-white font-bold shadow-[4px_4px_0px_#000] text-lg transition-all duration-200 hover:shadow-[6px_6px_0px_#000] hover:-translate-y-1"
               >
                 <Star className="w-5 h-5 mr-2 inline" />
                 Play Again
-              </Button>
+              </button>
             </motion.div>
           </div>
         </motion.div>
